@@ -43,7 +43,7 @@ def process_file(filename, data_type, word_counter, char_counter):
         for article in tqdm(source["data"]):
             for para in article["paragraphs"]:
                 context = para["context"].replace(
-                    "''", '" ').replace("``", '" ')
+                        "''", '" ').replace("``", '" ')
                 context_tokens = word_tokenize(context)
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
@@ -54,7 +54,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
-                        "''", '" ').replace("``", '" ')
+                            "''", '" ').replace("``", '" ')
                     ques_tokens = word_tokenize(ques)
                     ques_chars = [list(token) for token in ques_tokens]
                     for token in ques_tokens:
@@ -75,7 +75,8 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    example = {"context_tokens": context_tokens, "context_chars": context_chars, "ques_tokens": ques_tokens,
+                    example = {"context_tokens": context_tokens, "context_chars": context_chars,
+                               "ques_tokens": ques_tokens,
                                "ques_chars": ques_chars, "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
@@ -100,19 +101,19 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
                 if word in counter and counter[word] > limit:
                     embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
-            len(embedding_dict), len(filtered_elements), data_type))
+                len(embedding_dict), len(filtered_elements), data_type))
     else:
         assert vec_size is not None
         for token in filtered_elements:
             embedding_dict[token] = [np.random.normal(
-                scale=0.1) for _ in range(vec_size)]
+                    scale=0.1) for _ in range(vec_size)]
         print("{} tokens have corresponding embedding vector".format(
-            len(filtered_elements)))
+                len(filtered_elements)))
 
     NULL = "--NULL--"
     OOV = "--OOV--"
     token2idx_dict = {token: idx for idx,
-                      token in enumerate(embedding_dict.keys(), 2)}
+                                     token in enumerate(embedding_dict.keys(), 2)}
     token2idx_dict[NULL] = 0
     token2idx_dict[OOV] = 1
     embedding_dict[NULL] = [0. for _ in range(vec_size)]
@@ -122,8 +123,8 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
     emb_mat = [idx2emb_dict[idx] for idx in range(len(idx2emb_dict))]
     return emb_mat, token2idx_dict
 
-def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 
+def convert_to_features(config, data, word2idx_dict, char2idx_dict):
     example = {}
     context, question = data
     context = context.replace("''", '" ').replace("``", '" ')
@@ -183,8 +184,8 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 
     return context_idxs, context_char_idxs, ques_idxs, ques_char_idxs
 
-def build_features(config, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False):
 
+def build_features(config, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False):
     para_limit = config.test_para_limit if is_test else config.para_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
     ans_limit = 100 if is_test else config.ans_limit
@@ -247,14 +248,14 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         y1[start], y2[end] = 1.0, 1.0
 
         record = tf.train.Example(features=tf.train.Features(feature={
-                                  "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
-                                  "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
-                                  "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
-                                  "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
-                                  "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
-                                  "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
-                                  "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[example["id"]]))
-                                  }))
+            "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
+            "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
+            "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
+            "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
+            "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
+            "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
+            "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[example["id"]]))
+        }))
         writer.write(record.SerializeToString())
     print("Built {} / {} instances of features in total".format(total, total_))
     meta["total"] = total
@@ -272,11 +273,11 @@ def save(filename, obj, message=None):
 def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(
-        config.train_file, "train", word_counter, char_counter)
+            config.train_file, "train", word_counter, char_counter)
     dev_examples, dev_eval = process_file(
-        config.dev_file, "dev", word_counter, char_counter)
+            config.dev_file, "dev", word_counter, char_counter)
     test_examples, test_eval = process_file(
-        config.test_file, "test", word_counter, char_counter)
+            config.test_file, "test", word_counter, char_counter)
 
     word_emb_file = config.fasttext_file if config.fasttext else config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None
@@ -284,9 +285,9 @@ def prepro(config):
     char_emb_dim = config.glove_dim if config.pretrained_char else config.char_dim
 
     word_emb_mat, word2idx_dict = get_embedding(
-        word_counter, "word", emb_file=word_emb_file, size=config.glove_word_size, vec_size=config.glove_dim)
+            word_counter, "word", emb_file=word_emb_file, size=config.glove_word_size, vec_size=config.glove_dim)
     char_emb_mat, char2idx_dict = get_embedding(
-        char_counter, "char", emb_file=char_emb_file, size=char_emb_size, vec_size=char_emb_dim)
+            char_counter, "char", emb_file=char_emb_file, size=char_emb_size, vec_size=char_emb_dim)
 
     build_features(config, train_examples, "train",
                    config.train_record_file, word2idx_dict, char2idx_dict)

@@ -53,7 +53,7 @@ def train(config):
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter(config.log_dir)
             sess.run(tf.global_variables_initializer())
-            saver = tf.train.Saver()
+            saver = tf.train.Saver(max_to_keep=1000)
             train_handle = sess.run(train_iterator.string_handle())
             dev_handle = sess.run(dev_iterator.string_handle())
             if os.path.exists(os.path.join(config.save_dir, "checkpoint")):
