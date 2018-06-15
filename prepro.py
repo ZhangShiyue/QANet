@@ -38,6 +38,7 @@ def process_file(filename, data_type, word_counter, char_counter):
     examples = []
     eval_examples = {}
     total = 0
+    max_c, max_q = 0, 0
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
@@ -45,6 +46,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                 context = para["context"].replace(
                         "''", '" ').replace("``", '" ')
                 context_tokens = word_tokenize(context)
+                max_c = max(max_c, len(context_tokens))
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
                 for token in context_tokens:
@@ -56,6 +58,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                     ques = qa["question"].replace(
                             "''", '" ').replace("``", '" ')
                     ques_tokens = word_tokenize(ques)
+                    max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
                     for token in ques_tokens:
                         word_counter[token] += 1
@@ -83,6 +86,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                         "context": context, "spans": spans, "answers": answer_texts, "uuid": qa["id"]}
         random.shuffle(examples)
         print("{} questions in total".format(len(examples)))
+        print("max_c, max_q: {}, {}".format(max_c, max_q))
     return examples, eval_examples
 
 
