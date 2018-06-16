@@ -540,8 +540,8 @@ def optimized_trilinear_for_attention(args, c_maxlen, q_maxlen, input_keep_prob=
         subres0 = tf.tile(dot(droped_args[0], weights4arg0), [1, 1, q_maxlen])
         subres1 = tf.tile(tf.transpose(dot(droped_args[1], weights4arg1), perm=(0, 2, 1)), [1, c_maxlen, 1])
         subres2 = batch_dot(droped_args[0] * weights4mlu, tf.transpose(droped_args[1], perm=(0, 2, 1)))
-        res = subres0 + subres1 + subres2
-        nn_ops.bias_add(res, biases)
+        res = subres0 + subres1 + subres2 + biases
+        # nn_ops.bias_add(res, biases)
         return res
 
 def trilinear(args,
