@@ -1,6 +1,6 @@
 import tensorflow as tf
 from layers import initializer, regularizer, residual_block, highway, conv, mask_logits, trilinear, total_params, \
-    optimized_trilinear_for_attention
+    optimized_trilinear_for_attention, _linear, multihead_attention
 
 
 class Model(object):
@@ -29,6 +29,10 @@ class Model(object):
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
+            self.loop_function = None
+            self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
+            self.beam_size = 1
+
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
             self.a_mask = tf.cast(self.a, tf.bool)
@@ -52,7 +56,10 @@ class Model(object):
                 self.y1 = tf.slice(self.y1, [0, 0], [N, self.c_maxlen])
                 self.y2 = tf.slice(self.y2, [0, 0], [N, self.c_maxlen])
             else:
-                self.c_maxlen, self.q_maxlen, self.a_maxlen = config.para_limit, config.ques_limit, config.ans_limit
+                if trainable:
+                    self.c_maxlen, self.q_maxlen, self.a_maxlen = config.para_limit, config.ques_limit, config.ans_limit
+                else:
+                    self.c_maxlen, self.q_maxlen, self.a_maxlen = config.test_para_limit, config.test_ques_limit, config.test_ans_limit
 
             self.ch_len = tf.reshape(tf.reduce_sum(
                     tf.cast(tf.cast(self.ch, tf.bool), tf.int32), axis=2), [-1])
@@ -75,8 +82,8 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, CL, d, dc, nh = config.batch_size if not self.demo else 1, self.c_maxlen, self.q_maxlen, \
-                                   config.char_limit, config.hidden, config.char_dim, config.num_heads
+        N, PL, QL, CL, d, dc, nh, dw = config.batch_size if not self.demo else 1, self.c_maxlen, self.q_maxlen, \
+                                config.char_limit, config.hidden, config.char_dim, config.num_heads, config.glove_dim
 
         with tf.variable_scope("Input_Embedding_Layer"):
             ch_emb = tf.reshape(tf.nn.embedding_lookup(
@@ -165,6 +172,69 @@ class Model(object):
                                        bias=False,
                                        reuse=True if i > 0 else None,
                                        dropout=self.dropout))
+
+        with tf.variable_scope("Decoder_Layer"):
+            oups = tf.split(self.a, [1] * self.a_maxlen, 1)
+            memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
+            h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
+            c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
+            state = (c, h)
+            weights = []
+            crossents = []
+            prev = None
+            prev_probs = [0]
+            symbols = []
+            for i, inp in enumerate(oups):
+                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [N, dw])
+                if i > 0:
+                    tf.get_variable_scope().reuse_variables()
+
+                if self.loop_function is not None and prev is not None:
+                    with tf.variable_scope("loop_function", reuse=True):
+                        inp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i)
+                        h = tf.gather(h, index)  # update prev state
+                        state = ((tf.gather(s, index) for s in sta) for sta in state)  # update prev state
+                        for j, symbol in enumerate(symbols):
+                            symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                        symbols.append(prev_symbol)
+
+                attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
+                                                      mask=self.c_mask, bias=False), [N, -1])
+
+                cinp = tf.concat([einp, attn], 1)
+                h, state = self.cell(cinp, state)
+
+                with tf.variable_scope("AttnOutputProjection"):
+                    output = _linear([h] + [cinp], output_size=dw * 2, bias=False, scope="output")
+                    output = tf.reshape(output, [-1, dw, 2])
+                    output = tf.reduce_max(output, 2)  # maxout
+
+                if self.loop_function is not None:
+                    prev = output
+
+                if i + 1 < len(oups):
+                    logit = tf.matmul(output, self.word_mat, transpose_b=True)
+                    target = tf.reshape(oups[i + 1], [-1])
+                    crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
+                    weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
+                    weights.append(weight)
+                    crossents.append(crossent * weight)
+
+            log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
+            self.gen_loss = tf.reduce_sum(log_perps) / tf.cast(N, tf.float32)
+
+            if self.loop_function is not None:
+                # process the last symbol
+                inp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i + 1)
+                for j, symbol in enumerate(symbols):
+                    symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                symbols.append(prev_symbol)
+
+                # output the final best result of beam search
+                for k, symbol in enumerate(symbols):
+                    symbols[k] = tf.gather(symbol, 0)
+
+            self.symbols = symbols
 
         with tf.variable_scope("Output_Layer"):
             start_logits = tf.squeeze(
