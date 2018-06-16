@@ -24,10 +24,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data"
-log_dir = os.path.join(dir_name, "event")
-save_dir = os.path.join(dir_name, "model")
-answer_dir = os.path.join(dir_name, "answer")
+target_dir = "data1"
+log_dir = os.path.join(dir_name, "event1")
+save_dir = os.path.join(dir_name, "model1")
+answer_dir = os.path.join(dir_name, "answer1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -83,9 +83,10 @@ flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
 flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
-flags.DEFINE_integer("ans_limit", 30, "Limit length for answers")
+flags.DEFINE_integer("ans_limit", 33, "Limit length for answers")
 flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
 flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
+flags.DEFINE_integer("test_ans_limit", 100, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
 flags.DEFINE_integer("word_count_limit", -1, "Min count for word")
 flags.DEFINE_integer("char_count_limit", -1, "Min count for char")

@@ -38,7 +38,7 @@ def process_file(filename, data_type, word_counter, char_counter):
     examples = []
     eval_examples = {}
     total = 0
-    max_c, max_q = 0, 0
+    max_c, max_q, max_a = 0, 0, 0
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
@@ -66,11 +66,14 @@ def process_file(filename, data_type, word_counter, char_counter):
                             char_counter[char] += 1
                     y1s, y2s = [], []
                     answer_texts = []
+                    answer_tokens  = []
                     for answer in qa["answers"]:
                         answer_text = answer["text"]
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
+                        answer_tokens.append(["--GO--"] + word_tokenize(answer_text) + ["--EOS--"])
+                        max_a = max(max_a, len(answer_tokens))
                         answer_span = []
                         for idx, span in enumerate(spans):
                             if not (answer_end <= span[0] or answer_start >= span[1]):
@@ -79,14 +82,14 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1s.append(y1)
                         y2s.append(y2)
                     example = {"context_tokens": context_tokens, "context_chars": context_chars,
-                               "ques_tokens": ques_tokens,
+                               "ques_tokens": ques_tokens, "ans_tokens": answer_tokens,
                                "ques_chars": ques_chars, "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
                         "context": context, "spans": spans, "answers": answer_texts, "uuid": qa["id"]}
         random.shuffle(examples)
         print("{} questions in total".format(len(examples)))
-        print("max_c, max_q: {}, {}".format(max_c, max_q))
+        print("max_c, max_q, max_a: {}, {}, {}".format(max_c, max_q, max_a))
     return examples, eval_examples
 
 
@@ -116,12 +119,18 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
 
     NULL = "--NULL--"
     OOV = "--OOV--"
+    EOS = "--EOS--"
+    GO = "--GO--"
     token2idx_dict = {token: idx for idx,
-                                     token in enumerate(embedding_dict.keys(), 2)}
+                                     token in enumerate(embedding_dict.keys(), 4)}
     token2idx_dict[NULL] = 0
     token2idx_dict[OOV] = 1
+    token2idx_dict[EOS] = 2
+    token2idx_dict[GO] = 3
     embedding_dict[NULL] = [0. for _ in range(vec_size)]
     embedding_dict[OOV] = [0. for _ in range(vec_size)]
+    embedding_dict[EOS] = [0. for _ in range(vec_size)]
+    embedding_dict[GO] = [0. for _ in range(vec_size)]
     idx2emb_dict = {idx: embedding_dict[token]
                     for token, idx in token2idx_dict.items()}
     emb_mat = [idx2emb_dict[idx] for idx in range(len(idx2emb_dict))]
@@ -192,13 +201,13 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 def build_features(config, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False):
     para_limit = config.test_para_limit if is_test else config.para_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
-    ans_limit = 100 if is_test else config.ans_limit
+    ans_limit = config.test_ans_limit if is_test else config.ans_limit
     char_limit = config.char_limit
 
     def filter_func(example, is_test=False):
         return len(example["context_tokens"]) > para_limit or \
                len(example["ques_tokens"]) > ques_limit or \
-               (example["y2s"][0] - example["y1s"][0]) > ans_limit
+               (example["y2s"][0] - example["y1s"][0]) > (ans_limit - 3)
 
     print("Processing {} examples...".format(data_type))
     writer = tf.python_io.TFRecordWriter(out_file)
@@ -215,6 +224,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
+        ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
@@ -236,6 +246,9 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         for i, token in enumerate(example["ques_tokens"]):
             ques_idxs[i] = _get_word(token)
 
+        for i, token in enumerate(example["ans_tokens"][0]):
+            ans_idxs[i] = _get_word(token)
+
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):
                 if j == char_limit:
@@ -254,6 +267,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
+            "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
             "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
             "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),

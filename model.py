@@ -21,7 +21,7 @@ class Model(object):
                 self.y1 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index1")
                 self.y2 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index2")
             else:
-                self.c, self.q, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
+                self.c, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
 
             # self.word_unk = tf.get_variable("word_unk", shape = [config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(
@@ -31,23 +31,28 @@ class Model(object):
 
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
+            self.a_mask = tf.cast(self.a, tf.bool)
             self.c_len = tf.reduce_sum(tf.cast(self.c_mask, tf.int32), axis=1)
             self.q_len = tf.reduce_sum(tf.cast(self.q_mask, tf.int32), axis=1)
+            self.a_len = tf.reduce_sum(tf.cast(self.a_mask, tf.int32), axis=1)
 
             if opt:
                 N, CL = config.batch_size if not self.demo else 1, config.char_limit
                 self.c_maxlen = tf.reduce_max(self.c_len)
                 self.q_maxlen = tf.reduce_max(self.q_len)
+                self.a_maxlen = tf.reduce_max(self.a_len)
                 self.c = tf.slice(self.c, [0, 0], [N, self.c_maxlen])
                 self.q = tf.slice(self.q, [0, 0], [N, self.q_maxlen])
+                self.a = tf.slice(self.a, [0, 0], [N, self.a_maxlen])
                 self.c_mask = tf.slice(self.c_mask, [0, 0], [N, self.c_maxlen])
                 self.q_mask = tf.slice(self.q_mask, [0, 0], [N, self.q_maxlen])
+                self.a_mask = tf.slice(self.a_mask, [0, 0], [N, self.a_maxlen])
                 self.ch = tf.slice(self.ch, [0, 0, 0], [N, self.c_maxlen, CL])
                 self.qh = tf.slice(self.qh, [0, 0, 0], [N, self.q_maxlen, CL])
                 self.y1 = tf.slice(self.y1, [0, 0], [N, self.c_maxlen])
                 self.y2 = tf.slice(self.y2, [0, 0], [N, self.c_maxlen])
             else:
-                self.c_maxlen, self.q_maxlen = config.para_limit, config.ques_limit
+                self.c_maxlen, self.q_maxlen, self.a_maxlen = config.para_limit, config.ques_limit, config.ans_limit
 
             self.ch_len = tf.reshape(tf.reduce_sum(
                     tf.cast(tf.cast(self.ch, tf.bool), tf.int32), axis=2), [-1])
@@ -70,7 +75,8 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, CL, d, dc, nh = config.batch_size if not self.demo else 1, self.c_maxlen, self.q_maxlen, config.char_limit, config.hidden, config.char_dim, config.num_heads
+        N, PL, QL, CL, d, dc, nh = config.batch_size if not self.demo else 1, self.c_maxlen, self.q_maxlen, \
+                                   config.char_limit, config.hidden, config.char_dim, config.num_heads
 
         with tf.variable_scope("Input_Embedding_Layer"):
             ch_emb = tf.reshape(tf.nn.embedding_lookup(
