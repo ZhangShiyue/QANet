@@ -127,10 +127,10 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
     token2idx_dict[OOV] = 1
     token2idx_dict[EOS] = 2
     token2idx_dict[GO] = 3
-    embedding_dict[NULL] = [0. for _ in range(vec_size)]
-    embedding_dict[OOV] = [0. for _ in range(vec_size)]
-    embedding_dict[EOS] = [0. for _ in range(vec_size)]
-    embedding_dict[GO] = [0. for _ in range(vec_size)]
+    embedding_dict[NULL] = np.random.normal(size=vec_size)
+    embedding_dict[OOV] = np.random.normal(size=vec_size)
+    embedding_dict[EOS] = np.random.normal(size=vec_size)
+    embedding_dict[GO] = np.random.normal(size=vec_size)
     idx2emb_dict = {idx: embedding_dict[token]
                     for token, idx in token2idx_dict.items()}
     emb_mat = [idx2emb_dict[idx] for idx in range(len(idx2emb_dict))]

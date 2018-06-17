@@ -25,7 +25,7 @@ class Model(object):
 
             # self.word_unk = tf.get_variable("word_unk", shape = [config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(
-                    word_mat, dtype=tf.float32), trainable=True)
+                    word_mat, dtype=tf.float32), trainable=False)
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
