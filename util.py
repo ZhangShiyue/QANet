@@ -68,10 +68,11 @@ def get_batch_dataset(record_file, parser, config):
     return dataset
 
 
-def get_dataset(record_file, parser, config):
+def get_dataset(record_file, parser, config, is_test=False):
     num_threads = tf.constant(config.num_threads, dtype=tf.int32)
+    batch_size = config.test_batch_size if is_test else config.batch_size
     dataset = tf.data.TFRecordDataset(record_file).map(
-        parser, num_parallel_calls=num_threads).repeat().batch(config.batch_size)
+        parser, num_parallel_calls=num_threads).repeat().batch(batch_size)
     return dataset
 
 

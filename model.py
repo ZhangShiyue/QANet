@@ -29,7 +29,7 @@ class Model(object):
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
-            self.loop_function = None
+            self.loop_function = None if trainable else self._extract_argmax_and_embed(self.word_mat, len(word_mat))
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
             self.beam_size = 1
 
@@ -41,7 +41,7 @@ class Model(object):
             self.a_len = tf.reduce_sum(tf.cast(self.a_mask, tf.int32), axis=1)
 
             if opt:
-                N, CL = config.batch_size if not self.demo else 1, config.char_limit
+                N, CL = config.batch_size if trainable else config.test_batch_size, config.char_limit
                 self.c_maxlen = tf.reduce_max(self.c_len)
                 self.q_maxlen = tf.reduce_max(self.q_len)
                 self.a_maxlen = tf.reduce_max(self.a_len)
@@ -82,7 +82,7 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, CL, d, dc, nh, dw = config.batch_size if not self.demo else 1, self.c_maxlen, self.q_maxlen, \
+        N, PL, QL, CL, d, dc, nh, dw = config.test_batch_size if self.loop_function else config.batch_size, self.c_maxlen, self.q_maxlen, \
                                 config.char_limit, config.hidden, config.char_dim, config.num_heads, config.glove_dim
 
         with tf.variable_scope("Input_Embedding_Layer"):
@@ -193,7 +193,7 @@ class Model(object):
                     with tf.variable_scope("loop_function", reuse=True):
                         inp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i)
                         h = tf.gather(h, index)  # update prev state
-                        state = ((tf.gather(s, index) for s in sta) for sta in state)  # update prev state
+                        state = tuple(tf.gather(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
                             symbols[j] = tf.gather(symbol, index)  # update prev symbols
                         symbols.append(prev_symbol)
@@ -257,6 +257,8 @@ class Model(object):
                     logits=logits2, labels=self.y2)
             self.loss = tf.reduce_mean(losses + losses2)
 
+        self.loss = self.gen_loss
+
         if config.l2_norm is not None:
             variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
             l2_loss = tf.contrib.layers.apply_regularization(regularizer, variables)
@@ -279,3 +281,38 @@ class Model(object):
 
     def get_global_step(self):
         return self.global_step
+
+    def _extract_argmax_and_embed(self, embedding, num_symbols, update_embedding=True):
+        """Get a loop_function that extracts the previous symbol and embeds it.
+
+        Args:
+          embedding: embedding tensor for symbols.
+          num_symbols: the size of target vocabulary
+          update_embedding: Boolean; if False, the gradients will not propagate
+            through the embeddings.
+
+        Returns:
+          A loop function.
+        """
+
+        def loop_function(prev, prev_probs, beam_size, _):
+            # beam search
+            prev = tf.matmul(prev, embedding, transpose_b=True)
+            prev = tf.log(tf.nn.softmax(prev))
+            prev = tf.nn.bias_add(tf.transpose(prev), prev_probs)  # num_symbols*BEAM_SIZE
+            prev = tf.transpose(prev)
+            prev = tf.expand_dims(tf.reshape(prev, [-1]), 0)  # 1*(BEAM_SIZE*num_symbols)
+            probs, prev_symbolb = tf.nn.top_k(prev, beam_size)
+            probs = tf.squeeze(probs, [0])  # BEAM_SIZE,
+            prev_symbolb = tf.squeeze(prev_symbolb, [0])  # BEAM_SIZE,
+            index = prev_symbolb // num_symbols
+            prev_symbol = prev_symbolb % num_symbols
+
+            # Note that gradients will not propagate through the second parameter of
+            # embedding_lookup.
+            emb_prev = tf.nn.embedding_lookup(embedding, prev_symbol)
+            if not update_embedding:
+                emb_prev = tf.stop_gradient(emb_prev)
+            return emb_prev, probs, index, prev_symbol
+
+        return loop_function

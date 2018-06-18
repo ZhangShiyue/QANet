@@ -49,6 +49,7 @@ def train(config):
         patience = 0
         best_f1 = 0.
         best_em = 0.
+        sloss = 0.0
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter(config.log_dir)
@@ -64,7 +65,9 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
                                           handle: train_handle, model.dropout: config.dropout})
+                sloss += loss / config.period
                 if global_step % config.period == 0:
+                    print("sloss: {}".format(sloss))
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                         tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
@@ -139,14 +142,17 @@ def test(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
 
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
     total = meta["total"]
 
     graph = tf.Graph()
     print("Loading model...")
     with graph.as_default() as g:
         test_batch = get_dataset(config.test_record_file, get_record_parser(
-            config, is_test=True), config).make_one_shot_iterator()
+            config, is_test=True), config, is_test=True).make_one_shot_iterator()
 
         model = Model(config, test_batch, word_mat, char_mat, trainable=False, graph = g)
 
@@ -162,11 +168,17 @@ def test(config):
             losses = []
             answer_dict = {}
             remapped_dict = {}
-            for step in tqdm(range(total // config.batch_size + 1)):
-                qa_id, loss, yp1, yp2 = sess.run(
-                    [model.qa_id, model.loss, model.yp1, model.yp2])
-                answer_dict_, remapped_dict_ = convert_tokens(
-                    eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+            for step in tqdm(range(total // config.test_batch_size + 1)):
+                qa_id, loss, yp1, yp2, symbols = sess.run(
+                    [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
+                if 2 in symbols:
+                    symbols = symbols[:symbols.index(2)]
+                answer = ' '.join([id2word[symbol] for symbol in symbols])
+                # print(answer)
+                answer_dict_ = {str(qa_id[0]): answer}
+                remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
+                # answer_dict_, remapped_dict_ = convert_tokens(
+                #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
                 answer_dict.update(answer_dict_)
                 remapped_dict.update(remapped_dict_)
                 losses.append(loss)
