@@ -188,3 +188,19 @@ def test(config):
                 json.dump(remapped_dict, fh)
             print("Exact Match: {}, F1: {}".format(
                 metrics['exact_match'], metrics['f1']))
+
+
+def tmp(config):
+    with open(config.test_eval_file, "r") as fh:
+        eval_file = json.load(fh)
+    with open(config.answer_file, "r") as fh:
+        answer = json.load(fh)
+
+    id2ans = {}
+    for key in eval_file:
+        id2ans[eval_file[key]["uuid"]] = eval_file[key]["answers"]
+
+    for key in answer:
+        print "generated:", answer[key].encode('utf-8')
+        print "groundtruth:", id2ans[key]
+        print

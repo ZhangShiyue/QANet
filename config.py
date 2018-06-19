@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
-from main import train, test, demo
+from main import train, test, demo, tmp
 
 flags = tf.flags
 
@@ -137,6 +137,8 @@ def main(_):
         test(config)
     elif config.mode == "demo":
         demo(config)
+    elif config.mode == "tmp":
+        tmp(config)
     else:
         print("Unknown mode")
         exit(0)
