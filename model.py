@@ -31,7 +31,7 @@ class Model(object):
 
             self.loop_function = None if trainable else self._extract_argmax_and_embed(self.word_mat, len(word_mat))
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
-            self.beam_size = 1
+            self.beam_size = config.beam_size
 
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
@@ -174,24 +174,31 @@ class Model(object):
                                        dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
-            oups = tf.split(self.a, [1] * self.a_maxlen, 1)
+            batch_size = self.beam_size if self.loop_function else N
+            c_mask = self.c_mask
+            a = self.a
             memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
+            if self.loop_function and batch_size > 1:
+                c_mask = tf.tile(c_mask, [batch_size, 1])
+                a = tf.tile(a, [batch_size, 1])
+                memory = tf.tile(memory, [batch_size, 1, 1])
+            oups = tf.split(a, [1] * self.a_maxlen, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
             state = (c, h)
             weights = []
             crossents = []
             prev = None
-            prev_probs = [0]
+            prev_probs = [0] * self.beam_size
             symbols = []
             for i, inp in enumerate(oups):
-                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [N, dw])
+                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [batch_size, dw])
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
                 if self.loop_function is not None and prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
-                        inp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i)
+                        einp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i)
                         h = tf.gather(h, index)  # update prev state
                         state = tuple(tf.gather(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
@@ -199,7 +206,7 @@ class Model(object):
                         symbols.append(prev_symbol)
 
                 attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
-                                                      mask=self.c_mask, bias=False), [N, -1])
+                                                      mask=c_mask, bias=False), [batch_size, -1])
 
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cell(cinp, state)
@@ -225,7 +232,7 @@ class Model(object):
 
             if self.loop_function is not None:
                 # process the last symbol
-                inp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i + 1)
+                einp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i + 1)
                 for j, symbol in enumerate(symbols):
                     symbols[j] = tf.gather(symbol, index)  # update prev symbols
                 symbols.append(prev_symbol)
