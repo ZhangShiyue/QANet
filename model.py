@@ -174,25 +174,17 @@ class Model(object):
                                        dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
-            batch_size = self.beam_size if self.loop_function else N
-            c_mask = self.c_mask
-            a = self.a
             memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
-            if self.loop_function and batch_size > 1:
-                c_mask = tf.tile(c_mask, [batch_size, 1])
-                a = tf.tile(a, [batch_size, 1])
-                memory = tf.tile(memory, [batch_size, 1, 1])
-            oups = tf.split(a, [1] * self.a_maxlen, 1)
+            oups = tf.split(self.a, [1] * self.a_maxlen, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
             state = (c, h)
-            weights = []
-            crossents = []
+            outputs = []
             prev = None
-            prev_probs = [0] * self.beam_size
+            prev_probs = [0.0]
             symbols = []
             for i, inp in enumerate(oups):
-                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [batch_size, dw])
+                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [N, dw])
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
@@ -203,10 +195,12 @@ class Model(object):
                         state = tuple(tf.gather(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
                             symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                        for j, output in enumerate(outputs):
+                            outputs[j] = tf.gather(output, index)  # update prev outputs
                         symbols.append(prev_symbol)
 
                 attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
-                                                      mask=c_mask, bias=False), [batch_size, -1])
+                                                      mask=self.c_mask, bias=False), [-1, nh * d])
 
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cell(cinp, state)
@@ -215,32 +209,27 @@ class Model(object):
                     output = _linear([h] + [cinp], output_size=dw * 2, bias=False, scope="output")
                     output = tf.reshape(output, [-1, dw, 2])
                     output = tf.reduce_max(output, 2)  # maxout
+                    outputs.append(output)
 
                 if self.loop_function is not None:
                     prev = output
-
-                if i + 1 < len(oups):
-                    logit = tf.matmul(output, self.word_mat, transpose_b=True)
-                    target = tf.reshape(oups[i + 1], [-1])
-                    crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
-                    weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
-                    weights.append(weight)
-                    crossents.append(crossent * weight)
-
-            log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-            self.gen_loss = tf.reduce_sum(log_perps) / tf.cast(N, tf.float32)
 
             if self.loop_function is not None:
                 # process the last symbol
                 einp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, self.beam_size, i + 1)
                 for j, symbol in enumerate(symbols):
                     symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                for j, output in enumerate(outputs):
+                    outputs[j] = tf.gather(output, index)  # update prev outputs
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
                 for k, symbol in enumerate(symbols):
                     symbols[k] = tf.gather(symbol, 0)
+                for k, output in enumerate(outputs):
+                    outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
 
+            self.gen_loss = self._compute_loss(outputs, oups, N)
             self.symbols = symbols
 
         with tf.variable_scope("Output_Layer"):
@@ -288,6 +277,20 @@ class Model(object):
 
     def get_global_step(self):
         return self.global_step
+
+    def _compute_loss(self, outputs, oups, N):
+        weights = []
+        crossents = []
+        for output, oup in zip(outputs[:-1], oups[1:]):
+            logit = tf.matmul(output, self.word_mat, transpose_b=True)
+            target = tf.reshape(oup, [-1])
+            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
+            weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
+            weights.append(weight)
+            crossents.append(crossent * weight)
+
+        log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
+        return tf.reduce_sum(log_perps) / tf.cast(N, tf.float32)
 
     def _extract_argmax_and_embed(self, embedding, num_symbols, update_embedding=True):
         """Get a loop_function that extracts the previous symbol and embeds it.
