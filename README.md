@@ -1,3 +1,5 @@
+Forked from https://github.com/NLPLearn/QANet
+
 # QANet
 A Tensorflow implementation of Google's [QANet](https://openreview.net/pdf?id=B14TlG-RW) (previously Fast Reading Comprehension (FRC)) from [ICLR2018](https://openreview.net/forum?id=B14TlG-RW).
 
