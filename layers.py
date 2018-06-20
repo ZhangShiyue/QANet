@@ -300,7 +300,7 @@ def dot_product_attention(q,
     with tf.variable_scope(scope, default_name="dot_product_attention", reuse=reuse):
         # [batch, num_heads, query_length, memory_length]
         # logits = tf.matmul(q, k, transpose_b=True)
-        logits = tf.expand_dims(tf.reduce_sum(q * k, [-1]), 1)
+        logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
         if bias:
             b = tf.get_variable("bias",
                                 logits.shape[-1],
@@ -309,7 +309,6 @@ def dot_product_attention(q,
             logits += b
         if mask is not None:
             shapes = [x if x != None else -1 for x in logits.shape.as_list()]
-            # shapes1 = [x if x != None else -1 for x in k.shape.as_list()]
             mask = tf.reshape(mask, [-1, 1, 1, shapes[-1]])
             logits = mask_logits(logits, mask)
         weights = tf.nn.softmax(logits, name="attention_weights")
