@@ -173,8 +173,20 @@ def test(config):
                     [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
                 if 2 in symbols:
                     symbols = symbols[:symbols.index(2)]
-                answer = ' '.join([id2word[symbol] for symbol in symbols])
-                # print(answer)
+                answer = u' '.join([id2word[symbol] for symbol in symbols])
+                # deal with special symbols like %, $ etc
+                elim_pre_spas = [u' %', u" 's", u' ,', u' m ']
+                for s in elim_pre_spas:
+                    if s in answer:
+                        answer = answer[:answer.index(s)] + answer[answer.index(s) + 1:]
+                elim_beh_spas = [u'$ ', u'\xa3 ']
+                for s in elim_beh_spas:
+                    if s in answer:
+                        answer = answer[:answer.index(s) + 1] + answer[answer.index(s) + 2:]
+                elim_both_spas = [u' - ']
+                for s in elim_both_spas:
+                    if s in answer:
+                        answer = answer[:answer.index(s)] + answer[answer.index(s) + 1] + answer[answer.index(s) + 3:]
                 answer_dict_ = {str(qa_id[0]): answer}
                 remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
                 # answer_dict_, remapped_dict_ = convert_tokens(
