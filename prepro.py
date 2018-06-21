@@ -44,7 +44,7 @@ def process_file(filename, data_type, word_counter, char_counter):
         for article in tqdm(source["data"]):
             for para in article["paragraphs"]:
                 context = para["context"].replace(
-                        "''", '" ').replace("``", '" ')
+                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 context_tokens = word_tokenize(context)
                 max_c = max(max_c, len(context_tokens))
                 context_chars = [list(token) for token in context_tokens]
@@ -56,7 +56,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
-                            "''", '" ').replace("``", '" ')
+                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                     ques_tokens = word_tokenize(ques)
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
@@ -68,7 +68,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                     answer_texts = []
                     answer_tokens  = []
                     for answer in qa["answers"]:
-                        answer_text = answer["text"]
+                        answer_text = answer["text"].replace(u'\u2013', '-')
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
