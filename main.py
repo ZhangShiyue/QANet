@@ -3,6 +3,7 @@ import ujson as json
 import numpy as np
 from tqdm import tqdm
 import os
+import re
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -178,15 +179,21 @@ def test(config):
                 elim_pre_spas = [u' %', u" 's", u' ,', u' m ']
                 for s in elim_pre_spas:
                     if s in answer:
-                        answer = answer[:answer.index(s)] + answer[answer.index(s) + 1:]
-                elim_beh_spas = [u'$ ', u'\xa3 ']
+                        indexs = [m.start() for m in re.finditer(s, answer)]
+                        for index in indexs:
+                            answer = answer[:index] + answer[index + 1:]
+                elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
                 for s in elim_beh_spas:
                     if s in answer:
-                        answer = answer[:answer.index(s) + 1] + answer[answer.index(s) + 2:]
+                        indexs = [m.start() for m in re.finditer(s, answer)]
+                        for index in indexs:
+                            answer = answer[:index + 1] + answer[index + 2:]
                 elim_both_spas = [u' - ']
                 for s in elim_both_spas:
                     if s in answer:
-                        answer = answer[:answer.index(s)] + answer[answer.index(s) + 1] + answer[answer.index(s) + 3:]
+                        indexs = [m.start() for m in re.finditer(s, answer)]
+                        for index in indexs:
+                            answer = answer[:index] + answer[index + 1] + answer[index + 3:]
                 answer_dict_ = {str(qa_id[0]): answer}
                 remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
                 # answer_dict_, remapped_dict_ = convert_tokens(
