@@ -30,7 +30,7 @@ def train(config):
 
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config)
+    parser = get_record_parser(config, len(word_mat))
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -153,7 +153,7 @@ def test(config):
     print("Loading model...")
     with graph.as_default() as g:
         test_batch = get_dataset(config.test_record_file, get_record_parser(
-            config, is_test=True), config, is_test=True).make_one_shot_iterator()
+            config, len(word_mat), is_test=True), config, is_test=True).make_one_shot_iterator()
 
         model = Model(config, test_batch, word_mat, char_mat, trainable=False, graph = g)
 
@@ -170,8 +170,8 @@ def test(config):
             answer_dict = {}
             remapped_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
-                qa_id, loss, yp1, yp2, symbols = sess.run(
-                    [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
+                qa_id, loss, yp1, yp2, symbols, c, cv = sess.run(
+                    [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols, model.c, model.cv])
                 if 2 in symbols:
                     symbols = symbols[:symbols.index(2)]
                 answer = u' '.join([id2word[symbol] for symbol in symbols])

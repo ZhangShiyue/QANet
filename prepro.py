@@ -223,6 +223,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
+        context_voc = np.zeros([len(word2idx_dict)], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
@@ -241,7 +242,9 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
             return 1
 
         for i, token in enumerate(example["context_tokens"]):
-            context_idxs[i] = _get_word(token)
+            wid = _get_word(token)
+            context_idxs[i] = wid
+            context_voc[wid] = 1
 
         for i, token in enumerate(example["ques_tokens"]):
             ques_idxs[i] = _get_word(token)
@@ -266,6 +269,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
 
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
+            "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),

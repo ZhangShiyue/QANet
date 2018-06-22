@@ -21,7 +21,7 @@ class Model(object):
                 self.y1 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index1")
                 self.y2 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index2")
             else:
-                self.c, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
+                self.c, self.cv, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
 
             # self.word_unk = tf.get_variable("word_unk", shape = [config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(
@@ -29,7 +29,7 @@ class Model(object):
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
-            self.loop_function = None if trainable else self._extract_argmax_and_embed(self.word_mat, len(word_mat))
+            self.loop_function = None if trainable else self._extract_argmax_and_embed(self.word_mat, len(word_mat), self.cv)
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
             self.beam_size = config.beam_size
 
@@ -115,7 +115,6 @@ class Model(object):
             q_emb = highway(q_emb, size=d, scope="highway", dropout=self.dropout, reuse=True)
 
         with tf.variable_scope("Embedding_Encoder_Layer"):
-            print c_emb, self.c_mask
             c = residual_block(c_emb,
                                num_blocks=1,
                                num_conv_layers=2,
@@ -297,7 +296,7 @@ class Model(object):
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
         return tf.reduce_sum(log_perps) / tf.cast(N, tf.float32)
 
-    def _extract_argmax_and_embed(self, embedding, num_symbols, update_embedding=True):
+    def _extract_argmax_and_embed(self, embedding, num_symbols, cv, update_embedding=True):
         """Get a loop_function that extracts the previous symbol and embeds it.
 
         Args:
@@ -313,6 +312,7 @@ class Model(object):
         def loop_function(prev, prev_probs, beam_size, _):
             # beam search
             prev = tf.matmul(prev, embedding, transpose_b=True)
+            # prev = prev * tf.to_float(cv + tf.constant([1] * 4 + [0] * (num_symbols - 4)))
             prev = tf.log(tf.nn.softmax(prev))
             prev = tf.nn.bias_add(tf.transpose(prev), prev_probs)  # num_symbols*BEAM_SIZE
             prev = tf.transpose(prev)
