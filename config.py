@@ -25,9 +25,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data3"
-log_dir = os.path.join(dir_name, "gen_event")
-save_dir = os.path.join(dir_name, "gen_model")
-answer_dir = os.path.join(dir_name, "gen_answer")
+log_dir = os.path.join(dir_name, "gen_event1")
+save_dir = os.path.join(dir_name, "gen_model1")
+answer_dir = os.path.join(dir_name, "gen_answer1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")

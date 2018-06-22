@@ -115,6 +115,7 @@ class Model(object):
             q_emb = highway(q_emb, size=d, scope="highway", dropout=self.dropout, reuse=True)
 
         with tf.variable_scope("Embedding_Encoder_Layer"):
+            print c_emb, self.c_mask
             c = residual_block(c_emb,
                                num_blocks=1,
                                num_conv_layers=2,
@@ -199,8 +200,12 @@ class Model(object):
                             outputs[j] = tf.gather(output, index)  # update prev outputs
                         symbols.append(prev_symbol)
 
-                attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
-                                                      mask=self.c_mask, bias=False), [-1, nh * d])
+                if self.loop_function is not None:
+                    attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
+                                                          mask=self.c_mask, bias=False, is_training=False), [-1, nh * d])
+                else:
+                    attn = tf.reshape(multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
+                                                          mask=self.c_mask, bias=False), [-1, nh * d])
 
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cell(cinp, state)
