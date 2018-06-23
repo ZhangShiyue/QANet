@@ -11,7 +11,7 @@ from main import train, test, demo, tmp
 
 flags = tf.flags
 
-home = os.path.expanduser("/work7/zhangsy/QANet/")
+home = os.path.expanduser("/playpen/home/shiyue/QANet/")
 train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
