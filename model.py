@@ -312,7 +312,7 @@ class Model(object):
         def loop_function(prev, prev_probs, beam_size, _):
             # beam search
             prev = tf.matmul(prev, embedding, transpose_b=True)
-            # prev = prev * tf.to_float(cv + tf.constant([1] * 4 + [0] * (num_symbols - 4)))
+            prev = prev * tf.to_float(cv + tf.constant([1] * 4 + [0] * (num_symbols - 4)))
             prev = tf.log(tf.nn.softmax(prev))
             prev = tf.nn.bias_add(tf.transpose(prev), prev_probs)  # num_symbols*BEAM_SIZE
             prev = tf.transpose(prev)

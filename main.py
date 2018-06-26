@@ -176,24 +176,18 @@ def test(config):
                     symbols = symbols[:symbols.index(2)]
                 answer = u' '.join([id2word[symbol] for symbol in symbols])
                 # deal with special symbols like %, $ etc
-                elim_pre_spas = [u' %', u" 's", u' ,', u' m ']
+                elim_pre_spas = [u' %', u" 's", u' ,']
                 for s in elim_pre_spas:
                     if s in answer:
-                        indexs = [m.start() for m in re.finditer(s, answer)]
-                        for index in indexs:
-                            answer = answer[:index] + answer[index + 1:]
+                        answer = s[1:].join(answer.split(s))
                 elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
                 for s in elim_beh_spas:
                     if s in answer:
-                        indexs = [m.start() for m in re.finditer(s, answer)]
-                        for index in indexs:
-                            answer = answer[:index + 1] + answer[index + 2:]
+                        answer = s[:-1].join(answer.split(s))
                 elim_both_spas = [u' - ']
                 for s in elim_both_spas:
                     if s in answer:
-                        indexs = [m.start() for m in re.finditer(s, answer)]
-                        for index in indexs:
-                            answer = answer[:index] + answer[index + 1] + answer[index + 3:]
+                        answer = s[1:-1].join(answer.split(s))
                 answer_dict_ = {str(qa_id[0]): answer}
                 remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
                 # answer_dict_, remapped_dict_ = convert_tokens(
