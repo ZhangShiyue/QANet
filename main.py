@@ -30,7 +30,7 @@ def train(config):
 
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, len(word_mat))
+    parser = get_record_parser(config, len(word_mat) + config.para_limit)
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -61,18 +61,18 @@ def train(config):
             if os.path.exists(os.path.join(config.save_dir, "checkpoint")):
                 saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
             global_step = max(sess.run(model.global_step), 1)
-
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
                                           handle: train_handle, model.dropout: config.dropout})
-                sloss += loss / config.period
+                sloss += loss / config.checkpoint
                 if global_step % config.period == 0:
-                    print("sloss: {}".format(sloss))
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                         tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
+                    print("sloss: {}".format(sloss))
+                    sloss = 0.0
                     _, summ = evaluate_batch(
                         model, config.val_num_batches, train_eval_file, sess, "train", handle, train_handle)
                     for s in summ:
@@ -170,8 +170,8 @@ def test(config):
             answer_dict = {}
             remapped_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
-                qa_id, loss, yp1, yp2, symbols, c, cv = sess.run(
-                    [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols, model.c, model.cv])
+                qa_id, loss, yp1, yp2, symbols = sess.run(
+                    [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
                 if 2 in symbols:
                     symbols = symbols[:symbols.index(2)]
                 answer = u' '.join([id2word[symbol] for symbol in symbols])

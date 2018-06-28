@@ -223,18 +223,18 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
-        context_voc = np.zeros([len(word2idx_dict)], dtype=np.int32)
+        context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
 
-        def _get_word(word):
+        def _get_word(word, i):
             for each in (word, word.lower(), word.capitalize(), word.upper()):
                 if each in word2idx_dict:
                     return word2idx_dict[each]
-            return 1
+            return len(word2idx_dict) + i
 
         def _get_char(char):
             if char in char2idx_dict:
@@ -242,15 +242,16 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
             return 1
 
         for i, token in enumerate(example["context_tokens"]):
-            wid = _get_word(token)
+            wid = _get_word(token, i)
             context_idxs[i] = wid
-            context_voc[wid] = 1
+            if wid < len(word2idx_dict):
+                context_voc[wid] = 1
 
         for i, token in enumerate(example["ques_tokens"]):
-            ques_idxs[i] = _get_word(token)
+            ques_idxs[i] = _get_word(token, i)
 
         for i, token in enumerate(example["ans_tokens"][0]):
-            ans_idxs[i] = _get_word(token)
+            ans_idxs[i] = _get_word(token, i)
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):

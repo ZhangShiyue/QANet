@@ -11,7 +11,7 @@ from main import train, test, demo, tmp
 
 flags = tf.flags
 
-home = os.path.expanduser("/playpen/home/shiyue/QANet/")
+home = os.path.expanduser("/work7/zhangsy/QANet/")
 train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
@@ -24,10 +24,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data4"
-log_dir = os.path.join(dir_name, "gen_event2")
-save_dir = os.path.join(dir_name, "gen_model2")
-answer_dir = os.path.join(dir_name, "gen_answer2")
+target_dir = "data5"
+log_dir = os.path.join(dir_name, "gen_event3")
+save_dir = os.path.join(dir_name, "gen_model3")
+answer_dir = os.path.join(dir_name, "gen_answer3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -96,10 +96,10 @@ flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
-flags.DEFINE_integer("batch_size", 32, "Batch size")
+flags.DEFINE_integer("batch_size", 16, "Batch size")
 flags.DEFINE_integer("test_batch_size", 1, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 60000, "Number of steps")
+flags.DEFINE_integer("num_steps", 120000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 100, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
@@ -120,7 +120,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def main(_):
     config = flags.FLAGS

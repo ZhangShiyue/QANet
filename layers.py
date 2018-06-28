@@ -168,6 +168,7 @@ def multihead_attention(queries, units, num_heads,
                         reuse=None,
                         mask=None,
                         is_training=True,
+                        return_weights=False,
                         bias=True,
                         dropout=0.0):
     with tf.variable_scope(scope, reuse=reuse):
@@ -187,9 +188,13 @@ def multihead_attention(queries, units, num_heads,
                                   seq_len=seq_len,
                                   mask=mask,
                                   is_training=is_training,
+                                  return_weights=return_weights,
                                   scope="dot_product_attention",
                                   reuse=reuse, dropout=dropout)
-        return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3]))
+        if return_weights:
+            return combine_last_two_dimensions(tf.transpose(x[0], [0, 2, 1, 3])), x[1]
+        else:
+            return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3]))
 
 
 def conv(inputs, output_size, bias=None, activation=None, kernel_size=1, name="conv", reuse=None):
@@ -283,6 +288,7 @@ def dot_product_attention(q,
                           seq_len=None,
                           mask=None,
                           is_training=True,
+                          return_weights=False,
                           scope=None,
                           reuse=None,
                           dropout=0.0):
@@ -320,7 +326,10 @@ def dot_product_attention(q,
             res = tf.matmul(weights, v)
         else:
             res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
-        return res
+        if return_weights:
+            return res, weights
+        else:
+            return res
 
 
 def combine_last_two_dimensions(x):
