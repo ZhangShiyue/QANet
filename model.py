@@ -22,20 +22,21 @@ class Model(object):
                 self.y2 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index2")
             else:
                 self.c, self.cv, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
-                self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + config.para_limit - 4))
+                self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + (config.para_limit if trainable else config.test_para_limit) - 4))
 
             # self.word_unk = tf.get_variable("word_unk", shape = [config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(
                     word_mat, dtype=tf.float32), trainable=False)
-            tmp_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [config.para_limit, 1])
+            tmp_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]),
+                                   [config.para_limit if trainable else config.test_para_limit, 1])
             self.word_mat = tf.concat([self.word_mat, tmp_word_mat], axis=0)
 
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
-            self.num_voc = len(word_mat) + config.para_limit
+            self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
             self.loop_function = None if trainable else \
-                self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.cv)
+                self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c, self.cv)
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
 
             self.c_mask = tf.cast(self.c, tf.bool)
@@ -184,7 +185,7 @@ class Model(object):
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
             state = (c, h)
-            prev = None
+            prev, attn_w, p_gen = None, None, None
             prev_probs = [0.0]
             symbols = []
             attn_ws = []
@@ -197,7 +198,7 @@ class Model(object):
 
                 if self.loop_function is not None and prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
-                        einp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, i)
+                        einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i)
                         h = tf.gather(h, index)  # update prev state
                         state = tuple(tf.gather(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
@@ -233,7 +234,7 @@ class Model(object):
 
             if self.loop_function is not None:
                 # process the last symbol
-                einp, prev_probs, index, prev_symbol = self.loop_function(prev, prev_probs, i + 1)
+                einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i + 1)
                 for j, symbol in enumerate(symbols):
                     symbols[j] = tf.gather(symbol, index)  # update prev symbols
                 for j, output in enumerate(outputs):
@@ -320,7 +321,7 @@ class Model(object):
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
         return tf.reduce_sum(log_perps) / tf.cast(batch_size, tf.float32)
 
-    def _extract_argmax_and_embed(self, embedding, num_symbols, beam_size, cv, update_embedding=True):
+    def _extract_argmax_and_embed(self, embedding, num_symbols, beam_size, c, cv, update_embedding=True):
         """Get a loop_function that extracts the previous symbol and embeds it.
 
         Args:
@@ -333,12 +334,21 @@ class Model(object):
           A loop function.
         """
 
-        def loop_function(prev, prev_probs, prob_c, _):
-            # beam search
+        def loop_function(prev, attn_w, p_gen, prev_probs, _):
             # prev = tf.matmul(prev, embedding, transpose_b=True)
             # prev = prev * tf.to_float(cv)
             # prev = tf.log(tf.nn.softmax(prev))
-            prev = tf.nn.bias_add(tf.transpose(prev), prev_probs)  # num_symbols*BEAM_SIZE
+            batch_size = prev.get_shape()[0].value
+            PL = c.get_shape()[1].value
+            batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+            indices_c = tf.stack((batch_nums_c, c), axis=2)
+            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
+            logit = tf.matmul(prev, embedding, transpose_b=True) * tf.to_float(cv)
+            dist_g = tf.nn.softmax(logit)
+            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
+
+            # beam search
+            prev = tf.nn.bias_add(tf.transpose(final_dist), prev_probs)  # num_symbols*BEAM_SIZE
             prev = tf.transpose(prev)
             prev = tf.expand_dims(tf.reshape(prev, [-1]), 0)  # 1*(BEAM_SIZE*num_symbols)
             probs, prev_symbolb = tf.nn.top_k(prev, beam_size)

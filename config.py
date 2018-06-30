@@ -120,7 +120,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def main(_):
     config = flags.FLAGS
