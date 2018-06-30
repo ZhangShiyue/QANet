@@ -172,30 +172,30 @@ def test(config):
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 qa_id, loss, yp1, yp2, symbols = sess.run(
                         [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
-                if 2 in symbols:
-                    symbols = symbols[:symbols.index(2)]
-                context = eval_file[str(qa_id[0])]["context"].replace(
-                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                context_tokens = word_tokenize(context)
-                answer = u' '.join([id2word[symbol] if symbol in id2word
-                                    else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                # deal with special symbols like %, $ etc
-                elim_pre_spas = [u' %', u" 's", u' ,']
-                for s in elim_pre_spas:
-                    if s in answer:
-                        answer = s[1:].join(answer.split(s))
-                elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                for s in elim_beh_spas:
-                    if s in answer:
-                        answer = s[:-1].join(answer.split(s))
-                elim_both_spas = [u' - ']
-                for s in elim_both_spas:
-                    if s in answer:
-                        answer = s[1:-1].join(answer.split(s))
-                answer_dict_ = {str(qa_id[0]): answer}
-                remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
-                # answer_dict_, remapped_dict_ = convert_tokens(
-                #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                # if 2 in symbols:
+                #     symbols = symbols[:symbols.index(2)]
+                # context = eval_file[str(qa_id[0])]["context"].replace(
+                #         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                # context_tokens = word_tokenize(context)
+                # answer = u' '.join([id2word[symbol] if symbol in id2word
+                #                     else context_tokens[symbol - len(id2word)] for symbol in symbols])
+                # # deal with special symbols like %, $ etc
+                # elim_pre_spas = [u' %', u" 's", u' ,']
+                # for s in elim_pre_spas:
+                #     if s in answer:
+                #         answer = s[1:].join(answer.split(s))
+                # elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                # for s in elim_beh_spas:
+                #     if s in answer:
+                #         answer = s[:-1].join(answer.split(s))
+                # elim_both_spas = [u' - ']
+                # for s in elim_both_spas:
+                #     if s in answer:
+                #         answer = s[1:-1].join(answer.split(s))
+                # answer_dict_ = {str(qa_id[0]): answer}
+                # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
+                answer_dict_, remapped_dict_ = convert_tokens(
+                    eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
                 answer_dict.update(answer_dict_)
                 remapped_dict.update(remapped_dict_)
                 losses.append(loss)
