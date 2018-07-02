@@ -170,8 +170,17 @@ def test(config):
             answer_dict = {}
             remapped_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
-                qa_id, loss, yp1, yp2, symbols = sess.run(
-                        [model.qa_id, model.loss, model.yp1, model.yp2, model.symbols])
+                qa_id, loss, yp1, yp2, byp1, byp2, symbols = sess.run(
+                        [model.qa_id, model.loss, model.yp1, model.yp2, model.byp1, model.byp2, model.symbols])
+                # ==== get prediction model beam search results ====
+                res = ["qa_id: {}".format(qa_id[0])]
+                for yp1 in byp1[0]:
+                    for yp2 in byp2[0]:
+                        answer_dict_, remapped_dict_ = convert_tokens(
+                            eval_file, qa_id.tolist(), [yp1], [yp2])
+                        res.append(answer_dict_.values()[0].encode("utf-8"))
+                with open("res_d_b25", 'a') as f:
+                    f.write('\n'.join(res) + '\n======\n')
                 # if 2 in symbols:
                 #     symbols = symbols[:symbols.index(2)]
                 # context = eval_file[str(qa_id[0])]["context"].replace(
@@ -194,10 +203,10 @@ def test(config):
                 #         answer = s[1:-1].join(answer.split(s))
                 # answer_dict_ = {str(qa_id[0]): answer}
                 # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
-                answer_dict_, remapped_dict_ = convert_tokens(
-                    eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                answer_dict.update(answer_dict_)
-                remapped_dict.update(remapped_dict_)
+                # answer_dict_, remapped_dict_ = convert_tokens(
+                #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                # answer_dict.update(answer_dict_)
+                # remapped_dict.update(remapped_dict_)
                 losses.append(loss)
             loss = np.mean(losses)
             metrics = evaluate(eval_file, answer_dict)

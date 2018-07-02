@@ -205,6 +205,10 @@ class Model(object):
                             symbols[j] = tf.gather(symbol, index)  # update prev symbols
                         for j, output in enumerate(outputs):
                             outputs[j] = tf.gather(output, index)  # update prev outputs
+                        for j, attn_w in enumerate(attn_ws):
+                            attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
+                        for j, p_gen in enumerate(p_gens):
+                            p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
                 attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=nh, memory=memory,
@@ -239,6 +243,10 @@ class Model(object):
                     symbols[j] = tf.gather(symbol, index)  # update prev symbols
                 for j, output in enumerate(outputs):
                     outputs[j] = tf.gather(output, index)  # update prev outputs
+                for j, attn_w in enumerate(attn_ws):
+                    attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
+                for j, p_gen in enumerate(p_gens):
+                    p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
@@ -246,6 +254,10 @@ class Model(object):
                     symbols[k] = tf.gather(symbol, 0)
                 for k, output in enumerate(outputs):
                     outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
+                for k, attn_w in enumerate(attn_ws):
+                    attn_ws[k] = tf.expand_dims(tf.gather(attn_w, 0), 0)
+                for k, p_gen in enumerate(p_gens):
+                    p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
 
             self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
             self.symbols = symbols
@@ -264,14 +276,16 @@ class Model(object):
                               tf.expand_dims(tf.nn.softmax(logits2), axis=1))
             outer = tf.matrix_band_part(outer, 0, config.ans_limit)
             self.yp1 = tf.argmax(tf.reduce_max(outer, axis=2), axis=1)
+            _, self.byp1 = tf.nn.top_k(tf.reduce_max(outer, axis=2), k=5)
             self.yp2 = tf.argmax(tf.reduce_max(outer, axis=1), axis=1)
+            _, self.byp2 = tf.nn.top_k(tf.reduce_max(outer, axis=1), k=5)
             losses = tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits1, labels=self.y1)
             losses2 = tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits2, labels=self.y2)
             self.loss = tf.reduce_mean(losses + losses2)
 
-        # self.loss = self.gen_loss
+        self.loss = self.gen_loss
 
         if config.l2_norm is not None:
             variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
@@ -340,8 +354,9 @@ class Model(object):
             # prev = tf.log(tf.nn.softmax(prev))
             batch_size = prev.get_shape()[0].value
             PL = c.get_shape()[1].value
+            bc = tf.tile(c, [batch_size, 1])
             batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
-            indices_c = tf.stack((batch_nums_c, c), axis=2)
+            indices_c = tf.stack((batch_nums_c, bc), axis=2)
             dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
             logit = tf.matmul(prev, embedding, transpose_b=True) * tf.to_float(cv)
             dist_g = tf.nn.softmax(logit)
