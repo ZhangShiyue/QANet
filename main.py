@@ -172,48 +172,100 @@ def test(config):
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 qa_id, loss, yp1, yp2, byp1, byp2, symbols = sess.run(
                         [model.qa_id, model.loss, model.yp1, model.yp2, model.byp1, model.byp2, model.symbols])
-                # ==== get prediction model beam search results ====
-                res = ["qa_id: {}".format(qa_id[0])]
-                for yp1 in byp1[0]:
-                    for yp2 in byp2[0]:
-                        answer_dict_, remapped_dict_ = convert_tokens(
-                            eval_file, qa_id.tolist(), [yp1], [yp2])
-                        res.append(answer_dict_.values()[0].encode("utf-8"))
-                with open("res_d_b25", 'a') as f:
-                    f.write('\n'.join(res) + '\n======\n')
-                # if 2 in symbols:
-                #     symbols = symbols[:symbols.index(2)]
-                # context = eval_file[str(qa_id[0])]["context"].replace(
-                #         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                # context_tokens = word_tokenize(context)
-                # answer = u' '.join([id2word[symbol] if symbol in id2word
-                #                     else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                # # deal with special symbols like %, $ etc
-                # elim_pre_spas = [u' %', u" 's", u' ,']
-                # for s in elim_pre_spas:
-                #     if s in answer:
-                #         answer = s[1:].join(answer.split(s))
-                # elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                # for s in elim_beh_spas:
-                #     if s in answer:
-                #         answer = s[:-1].join(answer.split(s))
-                # elim_both_spas = [u' - ']
-                # for s in elim_both_spas:
-                #     if s in answer:
-                #         answer = s[1:-1].join(answer.split(s))
+                # bsymbols = zip(*symbols)
+                # res = ["qa_id: {}".format(qa_id[0])]
+                # for symbols in bsymbols:
+                #     if 2 in symbols:
+                #         symbols = symbols[:symbols.index(2)]
+                #     context = eval_file[str(qa_id[0])]["context"].replace(
+                #             "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                #     context_tokens = word_tokenize(context)
+                #     answer = u' '.join([id2word[symbol] if symbol in id2word
+                #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
+                #     # deal with special symbols like %, $ etc
+                #     elim_pre_spas = [u' %', u" 's", u' ,']
+                #     for s in elim_pre_spas:
+                #         if s in answer:
+                #             answer = s[1:].join(answer.split(s))
+                #     elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                #     for s in elim_beh_spas:
+                #         if s in answer:
+                #             answer = s[:-1].join(answer.split(s))
+                #     elim_both_spas = [u' - ']
+                #     for s in elim_both_spas:
+                #         if s in answer:
+                #             answer = s[1:-1].join(answer.split(s))
+                #     res.append(answer.encode('utf-8'))
+                # with open("res_g_b10", 'a') as f:
+                #     f.write('\n'.join(res) + '\n\n')
                 # answer_dict_ = {str(qa_id[0]): answer}
                 # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer}
-                # answer_dict_, remapped_dict_ = convert_tokens(
-                #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                # answer_dict.update(answer_dict_)
-                # remapped_dict.update(remapped_dict_)
+
+                answer_dict_, remapped_dict_ = convert_tokens(
+                    eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                answer_dict.update(answer_dict_)
+                remapped_dict.update(remapped_dict_)
                 losses.append(loss)
+                # ==== get prediction model beam search results ====
+                res = ["qa_id: {}".format(qa_id[0])]
+                for yp1, yp2 in zip(byp1, byp2):
+                    answer_dict_, remapped_dict_ = convert_tokens(
+                        eval_file, qa_id.tolist(), [yp1], [yp2])
+                    res.append(answer_dict_.values()[0].encode("utf-8"))
+                with open("res_d_b{}".format(config.beam_size), 'a') as f:
+                    f.write('\n'.join(res) + '\n\n')
+
             loss = np.mean(losses)
             metrics = evaluate(eval_file, answer_dict)
             with open(config.answer_file, "w") as fh:
-                json.dump(remapped_dict, fh)
+                json.dump(answer_dict, fh)
             print("Exact Match: {}, F1: {}".format(
                     metrics['exact_match'], metrics['f1']))
+
+
+def test_f(config):
+    with open(config.test_eval_file, "r") as fh:
+        eval_file = json.load(fh)
+    g_answer_dict = {}
+    ans = []
+    qa_id = None
+    with open("res_g_b10", 'r') as f:
+        line = f.readline()
+        while line:
+            if "qa_id" in line:
+                if len(ans) > 0:
+                    g_answer_dict[qa_id] = ans
+                    ans = []
+                qa_id = line.strip().split(' ')[1]
+            elif "======" not in line:
+                if line.strip():
+                    ans.append(line.strip().decode('utf-8'))
+            line = f.readline()
+    d_answer_dict = {}
+    ans = []
+    qa_id = None
+    with open("res_d_b25", 'r') as f:
+        line = f.readline()
+        while line:
+            if "qa_id" in line:
+                if len(ans) > 0:
+                    d_answer_dict[qa_id] = ans
+                    ans = []
+                qa_id = line.strip().split(' ')[1]
+            elif "======" not in line:
+                if line.strip():
+                    ans.append(line.strip().decode('utf-8'))
+            line = f.readline()
+    answer_dict = {}
+    for qa_id in d_answer_dict:
+        for a in d_answer_dict[qa_id][:5]:
+            if a in g_answer_dict[qa_id]:
+                answer_dict[qa_id] = a
+        if qa_id not in answer_dict:
+            answer_dict[qa_id] = d_answer_dict[qa_id][0]
+    metrics = evaluate(eval_file, answer_dict)
+    print("Exact Match: {}, F1: {}".format(
+            metrics['exact_match'], metrics['f1']))
 
 
 def tmp(config):

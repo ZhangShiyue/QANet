@@ -37,6 +37,7 @@ class Model(object):
             self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
             self.loop_function = None if trainable else \
                 self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c, self.cv)
+            self.pred_loop_function = None if trainable else self._pred_beam_search(config.beam_size)
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
 
             self.c_mask = tf.cast(self.c, tf.bool)
@@ -250,8 +251,8 @@ class Model(object):
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
-                for k, symbol in enumerate(symbols):
-                    symbols[k] = tf.gather(symbol, 0)
+                # for k, symbol in enumerate(symbols):
+                #     symbols[k] = tf.gather(symbol, 0)
                 for k, output in enumerate(outputs):
                     outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
                 for k, attn_w in enumerate(attn_ws):
@@ -269,16 +270,14 @@ class Model(object):
                 conv(tf.concat([self.enc[1], self.enc[3]], axis=-1), 1, bias=False, name="end_pointer"), -1)
             self.logits = [mask_logits(start_logits, mask=self.c_mask),
                            mask_logits(end_logits, mask=self.c_mask)]
-
             logits1, logits2 = [l for l in self.logits]
-
             outer = tf.matmul(tf.expand_dims(tf.nn.softmax(logits1), axis=2),
                               tf.expand_dims(tf.nn.softmax(logits2), axis=1))
             outer = tf.matrix_band_part(outer, 0, config.ans_limit)
             self.yp1 = tf.argmax(tf.reduce_max(outer, axis=2), axis=1)
-            _, self.byp1 = tf.nn.top_k(tf.reduce_max(outer, axis=2), k=5)
             self.yp2 = tf.argmax(tf.reduce_max(outer, axis=1), axis=1)
-            _, self.byp2 = tf.nn.top_k(tf.reduce_max(outer, axis=1), k=5)
+            if self.pred_loop_function:
+                self.byp1, self.byp2 = self.pred_loop_function(outer)
             losses = tf.nn.softmax_cross_entropy_with_logits(
                     logits=logits1, labels=self.y1)
             losses2 = tf.nn.softmax_cross_entropy_with_logits(
@@ -309,6 +308,20 @@ class Model(object):
 
     def get_global_step(self):
         return self.global_step
+
+    def _pred_beam_search(self, beam_size):
+        def loop_function(outer):
+            PL = outer.get_shape()[1].value
+            bprobs1, byp1 = tf.nn.top_k(tf.log(tf.reduce_max(outer, axis=2)), k=beam_size)
+            bprobs2 = tf.tile(tf.log(tf.reduce_max(outer, axis=1)), [beam_size, 1]) + tf.transpose(bprobs1)
+            bprobs2 = tf.reshape(bprobs2, [1, PL * beam_size])
+            bprobs2, bindex = tf.nn.top_k(bprobs2, k=beam_size)
+            bindex = tf.squeeze(bindex, 0)
+            index = bindex // PL
+            byp2 = bindex % PL
+            byp1 = tf.gather(tf.squeeze(byp1, 0), index)
+            return byp1, byp2
+        return loop_function
 
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens):
         batch_size = ouputs[0].get_shape()[0].value

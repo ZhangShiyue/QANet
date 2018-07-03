@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
-from main import train, test, demo, tmp
+from main import train, test, test_f, demo, tmp
 
 flags = tf.flags
 
@@ -98,7 +98,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 16, "Batch size")
 flags.DEFINE_integer("test_batch_size", 1, "Batch size")
-flags.DEFINE_integer("beam_size", 1, "Beam size")
+flags.DEFINE_integer("beam_size", 2, "Beam size")
 flags.DEFINE_integer("num_steps", 120000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 100, "period to save batch loss")
@@ -136,6 +136,8 @@ def main(_):
         train(config)
     elif config.mode == "test":
         test(config)
+    elif config.mode == "test_f":
+        test_f(config)
     elif config.mode == "demo":
         demo(config)
     elif config.mode == "tmp":
