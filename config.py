@@ -6,8 +6,8 @@ This file is taken and modified from R-Net by HKUST-KnowComp
 https://github.com/HKUST-KnowComp/R-Net
 '''
 
-from prepro import prepro
-from main import train, test, test_f, demo, tmp
+from prepro import prepro, rerank_prepro
+from main import train, test, test_beam, test_rerank, demo, tmp
 
 flags = tf.flags
 
@@ -17,6 +17,9 @@ dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "data", "glove", "glove.840B.300d.txt")
 
+res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b5")
+res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b5")
+
 train_dir = "train"
 model_name = "FRC"
 dir_name = os.path.join(train_dir, model_name)
@@ -25,9 +28,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data5"
-log_dir = os.path.join(dir_name, "dis_event3")
-save_dir = os.path.join(dir_name, "dis_model3")
-answer_dir = os.path.join(dir_name, "dis_answer3")
+log_dir = os.path.join(dir_name, "gen_event3")
+save_dir = os.path.join(dir_name, "gen_model3")
+answer_dir = os.path.join(dir_name, "gen_answer3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -41,6 +44,9 @@ test_meta = os.path.join(target_dir, "test_meta.json")
 word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer.json")
+
+rerank_file = os.path.join(target_dir, "rerank_test.tfrecords")
+
 
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
@@ -75,6 +81,9 @@ flags.DEFINE_string("answer_file", answer_file, "Out file for answer")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
+flags.DEFINE_string("res_d_b_file", res_d_b_file, "Beam search results of prediction model")
+flags.DEFINE_string("res_g_b_file", res_g_b_file, "Beam search results of generation model")
+flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answers")
 
 flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
@@ -97,8 +106,8 @@ flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 16, "Batch size")
-flags.DEFINE_integer("test_batch_size", 1, "Batch size")
-flags.DEFINE_integer("beam_size", 2, "Beam size")
+flags.DEFINE_integer("test_batch_size", 16, "Batch size")
+flags.DEFINE_integer("beam_size", 5, "Beam size")
 flags.DEFINE_integer("num_steps", 120000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 100, "period to save batch loss")
@@ -120,12 +129,14 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
+    elif config.mode == "rerank_prepro":
+        rerank_prepro(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "debug":
@@ -136,8 +147,10 @@ def main(_):
         train(config)
     elif config.mode == "test":
         test(config)
-    elif config.mode == "test_f":
-        test_f(config)
+    elif config.mode == "test_beam":
+        test_beam(config)
+    elif config.mode == "test_rerank":
+        test_rerank(config)
     elif config.mode == "demo":
         demo(config)
     elif config.mode == "tmp":

@@ -4,9 +4,10 @@ from layers import initializer, regularizer, residual_block, highway, conv, mask
 
 
 class Model(object):
-    def __init__(self, config, batch, word_mat=None, char_mat=None, trainable=True, opt=False, demo=False, graph=None):
+    def __init__(self, config, batch, word_mat=None, char_mat=None, trainable=True, opt=False, demo=False, rerank=False, graph=None):
         self.config = config
         self.demo = demo
+        self.rerank = rerank
         self.graph = graph if graph is not None else tf.Graph()
         with self.graph.as_default():
 
@@ -20,6 +21,9 @@ class Model(object):
                 self.qh = tf.placeholder(tf.int32, [None, config.test_ques_limit, config.char_limit], "question_char")
                 self.y1 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index1")
                 self.y2 = tf.placeholder(tf.int32, [None, config.test_para_limit], "answer_index2")
+            elif self.rerank:
+                self.c, self.cv, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id, self.can_id = batch.get_next()
+                self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + config.test_para_limit - 4))
             else:
                 self.c, self.cv, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
                 self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + (config.para_limit if trainable else config.test_para_limit) - 4))
@@ -35,9 +39,9 @@ class Model(object):
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
             self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
-            self.loop_function = None if trainable else \
+            self.loop_function = None if trainable or self.rerank else \
                 self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c, self.cv)
-            self.pred_loop_function = None if trainable else self._pred_beam_search(config.beam_size)
+            self.pred_loop_function = None if trainable or self.rerank else self._pred_beam_search(config.beam_size)
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
 
             self.c_mask = tf.cast(self.c, tf.bool)
@@ -89,7 +93,7 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, CL, d, dc, nh, dw = config.test_batch_size if self.loop_function else config.batch_size, self.c_maxlen, self.q_maxlen, \
+        N, PL, QL, CL, d, dc, nh, dw = config.test_batch_size if self.loop_function or self.rerank else config.batch_size, self.c_maxlen, self.q_maxlen, \
                                 config.char_limit, config.hidden, config.char_dim, config.num_heads, config.glove_dim
 
         with tf.variable_scope("Input_Embedding_Layer"):
@@ -260,7 +264,7 @@ class Model(object):
                 for k, p_gen in enumerate(p_gens):
                     p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
 
-            self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
+            self.batch_loss, self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
             self.symbols = symbols
 
         with tf.variable_scope("Output_Layer"):
@@ -346,7 +350,7 @@ class Model(object):
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-        return tf.reduce_sum(log_perps) / tf.cast(batch_size, tf.float32)
+        return log_perps, tf.reduce_sum(log_perps) / tf.cast(batch_size, tf.float32)
 
     def _extract_argmax_and_embed(self, embedding, num_symbols, beam_size, c, cv, update_embedding=True):
         """Get a loop_function that extracts the previous symbol and embeds it.

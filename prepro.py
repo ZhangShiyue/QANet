@@ -66,14 +66,14 @@ def process_file(filename, data_type, word_counter, char_counter):
                             char_counter[char] += 1
                     y1s, y2s = [], []
                     answer_texts = []
-                    answer_tokens  = []
+                    answer_tokens = []
                     for answer in qa["answers"]:
                         answer_text = answer["text"].replace(u'\u2013', '-')
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
                         answer_tokens.append(["--GO--"] + word_tokenize(answer_text) + ["--EOS--"])
-                        max_a = max(max_a, len(answer_tokens))
+                        max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
                         for idx, span in enumerate(spans):
                             if not (answer_end <= span[0] or answer_start >= span[1]):
@@ -149,12 +149,13 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 
     para_limit = config.test_para_limit
     ques_limit = config.test_ques_limit
-    ans_limit = 100
+    ans_limit = config.test_ans_limit
     char_limit = config.char_limit
 
     def filter_func(example):
         return len(example["context_tokens"]) > para_limit or \
-               len(example["ques_tokens"]) > ques_limit
+               len(example["ques_tokens"]) > ques_limit \
+               (example["y2s"][0] - example["y1s"][0]) > (ans_limit - 3)
 
     if filter_func(example):
         raise ValueError("Context/Questions lengths are over the limit")
@@ -328,3 +329,94 @@ def prepro(config):
     save(config.test_meta, test_meta, message="test meta")
     save(config.word_dictionary, word2idx_dict, message="word dictionary")
     save(config.char_dictionary, char2idx_dict, message="char dictionary")
+
+
+def rerank_prepro(config):
+    para_limit = config.test_para_limit
+    ques_limit = config.test_ques_limit
+    ans_limit = config.test_ans_limit
+    char_limit = config.char_limit
+
+    with open(config.res_d_b_file+'_tmp', "r") as fh:
+        d_answer_dict = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word2idx_dict = json.load(fh)
+    with open(config.char_dictionary, "r") as fh:
+        char2idx_dict = json.load(fh)
+
+    word_counter, char_counter = Counter(), Counter()
+    test_examples, test_eval = process_file(
+         config.test_file, "test", word_counter, char_counter)
+
+    writer = tf.python_io.TFRecordWriter(config.rerank_file)
+    for test_example in test_examples:
+        candidate_answers = d_answer_dict[str(test_example["id"])]
+        candidate_answer_tokens = []
+        for candidate_answer in candidate_answers:
+            tokens = ["--GO--"] + word_tokenize(candidate_answer) + ["--EOS--"]
+            if len(tokens) <= ans_limit:
+                candidate_answer_tokens.append(tokens)
+
+        context_idxs = np.zeros([para_limit], dtype=np.int32)
+        context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
+        context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
+        ques_idxs = np.zeros([ques_limit], dtype=np.int32)
+        ans_idxs = [np.zeros([ans_limit], dtype=np.int32) for _ in range(len(candidate_answers))]
+        ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
+        y1 = np.zeros([para_limit], dtype=np.float32)
+        y2 = np.zeros([para_limit], dtype=np.float32)
+
+        def _get_word(word, i):
+            for each in (word, word.lower(), word.capitalize(), word.upper()):
+                if each in word2idx_dict:
+                    return word2idx_dict[each]
+            return len(word2idx_dict) + i
+
+        def _get_char(char):
+            if char in char2idx_dict:
+                return char2idx_dict[char]
+            return 1
+
+        for i, token in enumerate(test_example["context_tokens"]):
+            wid = _get_word(token, i)
+            context_idxs[i] = wid
+            if wid < len(word2idx_dict):
+                context_voc[wid] = 1
+
+        for i, token in enumerate(test_example["ques_tokens"]):
+            ques_idxs[i] = _get_word(token, i)
+
+        for k, candidate_answer_token in enumerate(candidate_answer_tokens):
+            for i, token in enumerate(candidate_answer_token):
+                ans_idxs[k][i] = _get_word(token, i)
+
+        for i, token in enumerate(test_example["context_chars"]):
+            for j, char in enumerate(token):
+                if j == char_limit:
+                    break
+                context_char_idxs[i, j] = _get_char(char)
+
+        for i, token in enumerate(test_example["ques_chars"]):
+            for j, char in enumerate(token):
+                if j == char_limit:
+                    break
+                ques_char_idxs[i, j] = _get_char(char)
+
+        start, end = test_example["y1s"][-1], test_example["y2s"][-1]
+        y1[start], y2[end] = 1.0, 1.0
+
+        for i, ans_idx in enumerate(ans_idxs):
+            record = tf.train.Example(features=tf.train.Features(feature={
+                "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
+                "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
+                "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
+                "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idx.tostring()])),
+                "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
+                "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
+                "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
+                "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
+                "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[test_example["id"]])),
+                "cid": tf.train.Feature(int64_list=tf.train.Int64List(value=[i]))
+            }))
+            writer.write(record.SerializeToString())
+    writer.close()

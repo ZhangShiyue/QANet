@@ -9,7 +9,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 
-def get_record_parser(config, voc_size, is_test=False):
+def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
     def parse(example):
         para_limit = config.test_para_limit if is_test else config.para_limit
         ques_limit = config.test_ques_limit if is_test else config.ques_limit
@@ -26,7 +26,8 @@ def get_record_parser(config, voc_size, is_test=False):
                                                "ques_char_idxs": tf.FixedLenFeature([], tf.string),
                                                "y1": tf.FixedLenFeature([], tf.string),
                                                "y2": tf.FixedLenFeature([], tf.string),
-                                               "id": tf.FixedLenFeature([], tf.int64)
+                                               "id": tf.FixedLenFeature([], tf.int64),
+                                               "cid": tf.FixedLenFeature([], tf.int64)
                                            })
         context_idxs = tf.reshape(tf.decode_raw(
             features["context_idxs"], tf.int32), [para_limit])
@@ -45,7 +46,8 @@ def get_record_parser(config, voc_size, is_test=False):
         y2 = tf.reshape(tf.decode_raw(
             features["y2"], tf.float32), [para_limit])
         qa_id = features["id"]
-        return context_idxs, context_voc, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id
+        can_id = features["cid"]
+        return context_idxs, context_voc, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id, can_id
     return parse
 
 
