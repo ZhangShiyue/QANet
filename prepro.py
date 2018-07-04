@@ -337,7 +337,7 @@ def rerank_prepro(config):
     ans_limit = config.test_ans_limit
     char_limit = config.char_limit
 
-    with open(config.res_d_b_file+'_tmp', "r") as fh:
+    with open(config.res_d_b_file, "r") as fh:
         d_answer_dict = json.load(fh)
     with open(config.word_dictionary, "r") as fh:
         word2idx_dict = json.load(fh)

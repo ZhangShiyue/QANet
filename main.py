@@ -254,7 +254,7 @@ def test_rerank(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
-    with open(config.res_d_b_file+'_tmp', "r") as fh:
+    with open(config.res_d_b_file, "r") as fh:
         d_answer_dict = json.load(fh)
 
     total = meta["total"]
