@@ -17,8 +17,8 @@ dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "data", "glove", "glove.840B.300d.txt")
 
-res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b5")
-res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b5")
+res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b2")
+res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b2")
 
 train_dir = "train"
 model_name = "FRC"
@@ -28,9 +28,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data5"
-log_dir = os.path.join(dir_name, "gen_event3")
-save_dir = os.path.join(dir_name, "gen_model3")
-answer_dir = os.path.join(dir_name, "gen_answer3")
+log_dir = os.path.join(dir_name, "com_event")
+save_dir = os.path.join(dir_name, "com_model")
+answer_dir = os.path.join(dir_name, "com_answer")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -45,7 +45,7 @@ word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer.json")
 
-rerank_file = os.path.join(target_dir, "rerank_test.tfrecords")
+rerank_file = os.path.join(target_dir, "rerank_test2.tfrecords")
 
 
 if not os.path.exists(target_dir):

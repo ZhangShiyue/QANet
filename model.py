@@ -288,7 +288,7 @@ class Model(object):
                     logits=logits2, labels=self.y2)
             self.loss = tf.reduce_mean(losses + losses2)
 
-        self.loss = self.gen_loss
+        self.loss += self.gen_loss
 
         if config.l2_norm is not None:
             variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)

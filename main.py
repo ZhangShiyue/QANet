@@ -287,11 +287,12 @@ def test_rerank(config):
                     scores[qid].append((cid, l))
             reranked = {qid: sorted(scores[qid], key=lambda x: x[1])[0][0] for qid in scores}
             # for qid in reranked:
-            #     print qid
-            #     for cid, l in reranked[qid]:
-            #         print d_answer_dict[str(qid)][cid].encode('utf-8'), l
-            #     print "groundtruth: {}".format(eval_file[str(qid)]["answers"])
-            #     print
+            #     if d_answer_dict[str(qid)][0] in eval_file[str(qid)]["answers"] and \
+            #                     d_answer_dict[str(qid)][reranked[qid][0][0]] not in eval_file[str(qid)]["answers"]:
+            #         for cid, l in reranked[qid]:
+            #             print d_answer_dict[str(qid)][cid].encode('utf-8'), l
+            #         print "groundtruth: {}".format(eval_file[str(qid)]["answers"])
+            #         print
             answer_dict = {str(qid): d_answer_dict[str(qid)][reranked[qid]] for qid in reranked}
             metrics = evaluate(eval_file, answer_dict)
             with open(config.answer_file, "w") as fh:
