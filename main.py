@@ -235,9 +235,9 @@ def test(config):
 def test_beam(config):
     with open(config.test_eval_file, "r") as fh:
         eval_file = json.load(fh)
-    with open(config.res_g_b_file, "r") as fh:
+    with open("{}{}.json".format(config.res_g_b_file, config.beam_size), "r") as fh:
         g_answer_dict = json.load(fh)
-    with open(config.res_d_b_file, "r") as fh:
+    with open("{}{}.json".format(config.res_d_b_file, config.beam_size), "r") as fh:
         d_answer_dict = json.load(fh)
     answer_dict = {}
     for qa_id in d_answer_dict:
@@ -260,7 +260,7 @@ def test_rerank(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
-    with open(config.res_d_b_file, "r") as fh:
+    with open("{}{}.json".format(config.res_d_b_file, config.beam_size), "r") as fh:
         d_answer_dict = json.load(fh)
 
     total = meta["total"]
@@ -268,7 +268,8 @@ def test_rerank(config):
     graph = tf.Graph()
     print("Loading model...")
     with graph.as_default() as g:
-        test_batch = get_dataset(config.rerank_file, get_record_parser(
+        test_batch = get_dataset("{}{}.{}".format(config.rerank_file.split('.')[0], config.beam_size,
+                                                          config.rerank_file.split('.')[1]), get_record_parser(
                 config, len(word_mat) + config.test_para_limit, is_test=True, is_rerank=True),
                                  config, is_test=True).make_one_shot_iterator()
 
@@ -301,8 +302,8 @@ def test_rerank(config):
             #         print
             answer_dict = {str(qid): d_answer_dict[str(qid)][reranked[qid]] for qid in reranked}
             metrics = evaluate(eval_file, answer_dict)
-            with open(config.answer_file, "w") as fh:
-                json.dump(answer_dict, fh)
+            # with open(config.answer_file, "w") as fh:
+            #     json.dump(answer_dict, fh)
             print("Exact Match: {}, F1: {}".format(
                     metrics['exact_match'], metrics['f1']))
 

@@ -337,7 +337,7 @@ def rerank_prepro(config):
     ans_limit = config.test_ans_limit
     char_limit = config.char_limit
 
-    with open(config.res_d_b_file, "r") as fh:
+    with open("{}{}.json".format(config.res_d_b_file, config.beam_size), "r") as fh:
         d_answer_dict = json.load(fh)
     with open(config.word_dictionary, "r") as fh:
         word2idx_dict = json.load(fh)
@@ -348,7 +348,8 @@ def rerank_prepro(config):
     test_examples, test_eval = process_file(
          config.test_file, "test", word_counter, char_counter)
 
-    writer = tf.python_io.TFRecordWriter(config.rerank_file)
+    writer = tf.python_io.TFRecordWriter("{}{}.{}".format(config.rerank_file.split('.')[0], config.beam_size,
+                                                          config.rerank_file.split('.')[1]))
     for test_example in test_examples:
         candidate_answers = d_answer_dict[str(test_example["id"])]
         candidate_answer_tokens = []
