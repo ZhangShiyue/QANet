@@ -12,13 +12,14 @@ from main import train, test, test_beam, test_rerank, demo, tmp
 flags = tf.flags
 
 home = os.path.expanduser("/work7/zhangsy/QANet/")
+# home = os.path.expanduser("/playpen/home/shiyue/QANet/")
 train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "data", "glove", "glove.840B.300d.txt")
 
-res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b2")
-res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b2")
+res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b")
+res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b")
 
 train_dir = "train"
 model_name = "FRC"
@@ -43,9 +44,9 @@ dev_meta = os.path.join(target_dir, "dev_meta.json")
 test_meta = os.path.join(target_dir, "test_meta.json")
 word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
-answer_file = os.path.join(answer_dir, "answer.json")
+answer_file = os.path.join(answer_dir, "answer")
 
-rerank_file = os.path.join(target_dir, "rerank_test2.tfrecords")
+rerank_file = os.path.join(target_dir, "rerank_test.tfrecords")
 
 
 if not os.path.exists(target_dir):
@@ -106,8 +107,8 @@ flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 16, "Batch size")
-flags.DEFINE_integer("test_batch_size", 16, "Batch size")
-flags.DEFINE_integer("beam_size", 5, "Beam size")
+flags.DEFINE_integer("test_batch_size", 1, "Batch size")
+flags.DEFINE_integer("beam_size", 2, "Beam size")
 flags.DEFINE_integer("num_steps", 120000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 100, "period to save batch loss")

@@ -167,8 +167,8 @@ def test(config):
             if config.decay < 1.0:
                 sess.run(model.assign_vars)
             losses = []
-            answer_dict = {}
-            remapped_dict = {}
+            answer_dict_g = {}
+            answer_dict_d = {}
             res_g_b = {}
             res_d_b = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
@@ -199,31 +199,37 @@ def test(config):
                             answer = s[1:-1].join(answer.split(s))
                     answers.append(answer)
                 res_g_b[str(qa_id[0])] = answers
-                answer_dict_ = {str(qa_id[0]): answer[0]}
-                remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answer[0]}
+                answer_dict_g_ = {str(qa_id[0]): answers[0]}
+                # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answers[0]}
+                answer_dict_g.update(answer_dict_g_)
 
-                # answer_dict_, remapped_dict_ = convert_tokens(
+                # answer_dict_d_, _ = convert_tokens(
                 #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                answer_dict.update(answer_dict_)
-                remapped_dict.update(remapped_dict_)
-                # losses.append(loss)
+                # remapped_dict.update(remapped_dict_)
+                losses.append(loss)
                 # ==== get prediction model beam search results ====
-                # answers = []
-                # for yp1, yp2 in zip(byp1, byp2):
-                #     answer_dict_, remapped_dict_ = convert_tokens(
-                #         eval_file, qa_id.tolist(), [yp1], [yp2])
-                #     answers.append(answer_dict_.values()[0])
-                # res_d_b[str(qa_id[0])] = answers
+                answers = []
+                for yp1, yp2 in zip(byp1, byp2):
+                    answer_dict_, remapped_dict_ = convert_tokens(
+                        eval_file, qa_id.tolist(), [yp1], [yp2])
+                    answers.append(answer_dict_.values()[0])
+                res_d_b[str(qa_id[0])] = answers
+                answer_dict_d_ = {str(qa_id[0]): answers[0]}
+                answer_dict_d.update(answer_dict_d_)
 
-            save(config.res_g_b_file, res_g_b, "res_g_b")
-            save(config.res_d_b_file, res_d_b, "res_d_b")
+            save("{}{}.json".format(config.res_g_b_file, config.beam_size), res_g_b, "res_g_b")
+            save("{}{}.json".format(config.res_d_b_file, config.beam_size), res_d_b, "res_d_b")
 
             loss = np.mean(losses)
-            metrics = evaluate(eval_file, answer_dict)
-            with open(config.answer_file, "w") as fh:
-                json.dump(answer_dict, fh)
-            print("Exact Match: {}, F1: {}".format(
-                    metrics['exact_match'], metrics['f1']))
+            metrics = evaluate(eval_file, answer_dict_d)
+            with open("{}_d_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
+                json.dump(answer_dict_d, fh)
+            print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+            metrics = evaluate(eval_file, answer_dict_g)
+            with open("{}_g_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
+                json.dump(answer_dict_g, fh)
+            print("G: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+
 
 
 def test_beam(config):
