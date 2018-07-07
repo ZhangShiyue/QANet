@@ -55,11 +55,15 @@ def train(config):
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter(config.log_dir)
             sess.run(tf.global_variables_initializer())
+            params = tf.all_variables()
+            params_to_update = [param for param in params if u"Decoder_Layer/" in param.name]
+            params_to_load = [param for param in params if u"Decoder_Layer/" not in param.name]
+            saver_old = tf.train.Saver(var_list=params_to_load, max_to_keep=1000)
             saver = tf.train.Saver(max_to_keep=1000)
             train_handle = sess.run(train_iterator.string_handle())
             dev_handle = sess.run(dev_iterator.string_handle())
             if os.path.exists(os.path.join(config.save_dir, "checkpoint")):
-                saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
+                saver_old.restore(sess, tf.train.latest_checkpoint(config.save_dir))
             global_step = max(sess.run(model.global_step), 1)
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
