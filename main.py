@@ -177,34 +177,34 @@ def test(config):
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 qa_id, loss, yp1, yp2, byp1, byp2, symbols = sess.run(
                         [model.qa_id, model.loss, model.yp1, model.yp2, model.byp1, model.byp2, model.symbols])
-                bsymbols = zip(*symbols)
-                answers = []
-                for symbols in bsymbols:
-                    if 2 in symbols:
-                        symbols = symbols[:symbols.index(2)]
-                    context = eval_file[str(qa_id[0])]["context"].replace(
-                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                    context_tokens = word_tokenize(context)
-                    answer = u' '.join([id2word[symbol] if symbol in id2word
-                                        else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                    # deal with special symbols like %, $ etc
-                    elim_pre_spas = [u' %', u" 's", u' ,']
-                    for s in elim_pre_spas:
-                        if s in answer:
-                            answer = s[1:].join(answer.split(s))
-                    elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                    for s in elim_beh_spas:
-                        if s in answer:
-                            answer = s[:-1].join(answer.split(s))
-                    elim_both_spas = [u' - ']
-                    for s in elim_both_spas:
-                        if s in answer:
-                            answer = s[1:-1].join(answer.split(s))
-                    answers.append(answer)
-                res_g_b[str(qa_id[0])] = answers
-                answer_dict_g_ = {str(qa_id[0]): answers[0]}
+                # bsymbols = zip(*symbols)
+                # answers = []
+                # for symbols in bsymbols:
+                #     if 2 in symbols:
+                #         symbols = symbols[:symbols.index(2)]
+                #     context = eval_file[str(qa_id[0])]["context"].replace(
+                #             "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                #     context_tokens = word_tokenize(context)
+                #     answer = u' '.join([id2word[symbol] if symbol in id2word
+                #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
+                #     # deal with special symbols like %, $ etc
+                #     elim_pre_spas = [u' %', u" 's", u' ,']
+                #     for s in elim_pre_spas:
+                #         if s in answer:
+                #             answer = s[1:].join(answer.split(s))
+                #     elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                #     for s in elim_beh_spas:
+                #         if s in answer:
+                #             answer = s[:-1].join(answer.split(s))
+                #     elim_both_spas = [u' - ']
+                #     for s in elim_both_spas:
+                #         if s in answer:
+                #             answer = s[1:-1].join(answer.split(s))
+                #     answers.append(answer)
+                # res_g_b[str(qa_id[0])] = answers
+                # answer_dict_g_ = {str(qa_id[0]): answers[0]}
                 # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answers[0]}
-                answer_dict_g.update(answer_dict_g_)
+                # answer_dict_g.update(answer_dict_g_)
 
                 # answer_dict_d_, _ = convert_tokens(
                 #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
@@ -216,22 +216,22 @@ def test(config):
                     answer_dict_, remapped_dict_ = convert_tokens(
                         eval_file, qa_id.tolist(), [yp1], [yp2])
                     answers.append(answer_dict_.values()[0])
-                res_d_b[str(qa_id[0])] = answers
+                # res_d_b[str(qa_id[0])] = answers
                 answer_dict_d_ = {str(qa_id[0]): answers[0]}
                 answer_dict_d.update(answer_dict_d_)
 
-            save("{}{}.json".format(config.res_g_b_file, config.beam_size), res_g_b, "res_g_b")
-            save("{}{}.json".format(config.res_d_b_file, config.beam_size), res_d_b, "res_d_b")
+            # save("{}{}.json".format(config.res_g_b_file, config.beam_size), res_g_b, "res_g_b")
+            # save("{}{}.json".format(config.res_d_b_file, config.beam_size), res_d_b, "res_d_b")
 
             loss = np.mean(losses)
             metrics = evaluate(eval_file, answer_dict_d)
             with open("{}_d_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
                 json.dump(answer_dict_d, fh)
             print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
-            metrics = evaluate(eval_file, answer_dict_g)
-            with open("{}_g_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
-                json.dump(answer_dict_g, fh)
-            print("G: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+            # metrics = evaluate(eval_file, answer_dict_g)
+            # with open("{}_g_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
+            #     json.dump(answer_dict_g, fh)
+            # print("G: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
 
 
