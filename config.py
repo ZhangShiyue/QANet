@@ -29,9 +29,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data8"
-log_dir = os.path.join(dir_name, "dis_event_ori")
-save_dir = os.path.join(dir_name, "dis_model_ori")
-answer_dir = os.path.join(dir_name, "dis_answer_ori")
+log_dir = os.path.join(dir_name, "gen_event_ori")
+save_dir = os.path.join(dir_name, "gen_model_ori")
+answer_dir = os.path.join(dir_name, "gen_answer_ori")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -130,7 +130,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 def main(_):
     config = flags.FLAGS
