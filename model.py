@@ -28,12 +28,12 @@ class Model(object):
                 self.c, self.cv, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
                 self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + (config.para_limit if trainable else config.test_para_limit) - 4))
 
-            # self.word_unk = tf.get_variable("word_unk", shape = [config.glove_dim], initializer=initializer())
-            self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(
+            # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
+            original_word_mat = tf.get_variable("word_mat", initializer=tf.constant(
                     word_mat, dtype=tf.float32), trainable=False)
-            tmp_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]),
-                                   [config.para_limit if trainable else config.test_para_limit, 1])
-            self.word_mat = tf.concat([self.word_mat, tmp_word_mat], axis=0)
+            additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
+                                          [config.para_limit if trainable else config.test_para_limit, 1])
+            self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
 
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
@@ -105,10 +105,10 @@ class Model(object):
             qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
 
             # Bidaf style conv-highway encoder
-            ch_emb = conv(ch_emb, d,
-                          bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=None)
-            qh_emb = conv(qh_emb, d,
-                          bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
+            # ch_emb = conv(ch_emb, d,
+            #               bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=None)
+            # qh_emb = conv(qh_emb, d,
+            #               bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
 
             ch_emb = tf.reduce_max(ch_emb, axis=1)
             qh_emb = tf.reduce_max(qh_emb, axis=1)
@@ -122,8 +122,8 @@ class Model(object):
             c_emb = tf.concat([c_emb, ch_emb], axis=2)
             q_emb = tf.concat([q_emb, qh_emb], axis=2)
 
-            c_emb = highway(c_emb, size=d, scope="highway", dropout=self.dropout, reuse=None)
-            q_emb = highway(q_emb, size=d, scope="highway", dropout=self.dropout, reuse=True)
+            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
+            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
 
         with tf.variable_scope("Embedding_Encoder_Layer"):
             c = residual_block(c_emb,
@@ -136,7 +136,8 @@ class Model(object):
                                seq_len=self.c_len,
                                scope="Encoder_Residual_Block",
                                bias=False,
-                               dropout=self.dropout)
+                               dropout=self.dropout,
+                               input_projection=True)
             q = residual_block(q_emb,
                                num_blocks=1,
                                num_conv_layers=4,
@@ -148,7 +149,8 @@ class Model(object):
                                scope="Encoder_Residual_Block",
                                reuse=True,  # Share the weights between passage and question
                                bias=False,
-                               dropout=self.dropout)
+                               dropout=self.dropout,
+                               input_projection=True)
 
         with tf.variable_scope("Context_to_Query_Attention_Layer"):
             # C = tf.tile(tf.expand_dims(c,2),[1,1,self.q_maxlen,1])

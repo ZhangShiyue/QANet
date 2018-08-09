@@ -28,10 +28,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data5"
-log_dir = os.path.join(dir_name, "dis_event")
-save_dir = os.path.join(dir_name, "dis_model")
-answer_dir = os.path.join(dir_name, "dis_answer")
+target_dir = "data8"
+log_dir = os.path.join(dir_name, "dis_event_ori")
+save_dir = os.path.join(dir_name, "dis_model_ori")
+answer_dir = os.path.join(dir_name, "dis_answer_ori")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -89,7 +89,7 @@ flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answer
 flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
 flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
-flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
+flags.DEFINE_integer("char_dim", 200, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
 flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
@@ -130,7 +130,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def main(_):
     config = flags.FLAGS
