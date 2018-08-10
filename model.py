@@ -168,106 +168,123 @@ class Model(object):
 
         with tf.variable_scope("Model_Encoder_Layer"):
             inputs = tf.concat(attention_outputs, axis=-1)
-            self.enc = [conv(inputs, d, name="input_projection")]
-            for i in range(3):
-                if i % 2 == 0:  # dropout every 2 blocks
-                    self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
-                self.enc.append(
-                        residual_block(self.enc[i],
-                                       num_blocks=7,
-                                       num_conv_layers=2,
-                                       kernel_size=5,
-                                       mask=self.c_mask,
-                                       num_filters=d,
-                                       num_heads=nh,
-                                       seq_len=self.c_len,
-                                       scope="Model_Encoder",
-                                       bias=False,
-                                       reuse=True if i > 0 else None,
-                                       dropout=self.dropout))
+            enc = conv(inputs, d, name="input_projection")
+            # self.enc = [conv(inputs, d, name="input_projection")]
+            # for i in range(3):
+            #     if i % 2 == 0:  # dropout every 2 blocks
+            #         self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
+            #     self.enc.append(
+            #             residual_block(self.enc[i],
+            #                            num_blocks=7,
+            #                            num_conv_layers=2,
+            #                            kernel_size=5,
+            #                            mask=self.c_mask,
+            #                            num_filters=d,
+            #                            num_heads=nh,
+            #                            seq_len=self.c_len,
+            #                            scope="Model_Encoder",
+            #                            bias=False,
+            #                            reuse=True if i > 0 else None,
+            #                            dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
-            memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
-            oups = tf.split(self.a, [1] * self.a_maxlen, 1)
-            h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
-            c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
-            state = (c, h)
-            prev, attn_w, p_gen = None, None, None
-            prev_probs = [0.0]
-            symbols = []
-            attn_ws = []
-            p_gens = []
-            outputs = []
-            for i, inp in enumerate(oups):
-                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [N, dw])
-                if i > 0:
-                    tf.get_variable_scope().reuse_variables()
+            # memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
+            for i in range(1, config.ans_limit + 1):
+                ga_mask = tf.concat([tf.ones([N, i], dtype=tf.int32), tf.zeros([N, config.ans_limit - i], dtype=tf.int32)], axis=1)
+                oups = tf.nn.embedding_lookup(self.word_mat, self.a * ga_mask)
+                a = residual_block(oups,
+                                   num_blocks=1,
+                                   num_conv_layers=4,
+                                   kernel_size=7,
+                                   mask=tf.cast(self.a_mask, tf.int32) * ga_mask,
+                                   num_filters=d,
+                                   num_heads=nh,
+                                   scope="Output_Encoder",
+                                   bias=False,
+                                   reuse=True if i > 1 else None,
+                                   dropout=self.dropout,
+                                   input_projection=True)
 
-                if self.loop_function is not None and prev is not None:
-                    with tf.variable_scope("loop_function", reuse=True):
-                        einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i)
-                        h = tf.gather(h, index)  # update prev state
-                        state = tuple(tf.gather(s, index) for s in state)  # update prev state
-                        for j, symbol in enumerate(symbols):
-                            symbols[j] = tf.gather(symbol, index)  # update prev symbols
-                        for j, output in enumerate(outputs):
-                            outputs[j] = tf.gather(output, index)  # update prev outputs
-                        for j, attn_w in enumerate(attn_ws):
-                            attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
-                        for j, p_gen in enumerate(p_gens):
-                            p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
-                        symbols.append(prev_symbol)
-
-                attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=1, memory=memory,
-                                                   mask=self.c_mask, bias=False,
-                                                   is_training=False if self.loop_function is not None else True,
-                                                   return_weights=True)
-
-                attn_w = tf.reshape(attn_w, [-1, PL])
-                attn_ws.append(attn_w)
-                # update cell state
-                attn = tf.reshape(attn, [-1, d])
-                cinp = tf.concat([einp, attn], 1)
-                h, state = self.cell(cinp, state)
-
-                with tf.variable_scope("AttnOutputProjection"):
-                    # generation prob
-                    p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
-                    p_gens.append(p_gen)
-                    # generation
-                    output = _linear([h] + [cinp], output_size=dw * 2, bias=False, scope="output")
-                    output = tf.reshape(output, [-1, dw, 2])
-                    output = tf.reduce_max(output, 2)  # maxout
-                    outputs.append(output)
-
-                if self.loop_function is not None:
-                    prev = output
-
-            if self.loop_function is not None:
-                # process the last symbol
-                einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i + 1)
-                for j, symbol in enumerate(symbols):
-                    symbols[j] = tf.gather(symbol, index)  # update prev symbols
-                for j, output in enumerate(outputs):
-                    outputs[j] = tf.gather(output, index)  # update prev outputs
-                for j, attn_w in enumerate(attn_ws):
-                    attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
-                for j, p_gen in enumerate(p_gens):
-                    p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
-                symbols.append(prev_symbol)
-
-                # output the final best result of beam search
-                # for k, symbol in enumerate(symbols):
-                #     symbols[k] = tf.gather(symbol, 0)
-                for k, output in enumerate(outputs):
-                    outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
-                for k, attn_w in enumerate(attn_ws):
-                    attn_ws[k] = tf.expand_dims(tf.gather(attn_w, 0), 0)
-                for k, p_gen in enumerate(p_gens):
-                    p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
-
-            self.batch_loss, self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
-            self.symbols = symbols
+        #     oups = tf.split(self.a, [1] * self.a_maxlen, 1)
+        #     h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
+        #     c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
+        #     state = (c, h)
+        #     prev, attn_w, p_gen = None, None, None
+        #     prev_probs = [0.0]
+        #     symbols = []
+        #     attn_ws = []
+        #     p_gens = []
+        #     outputs = []
+        #     for i, inp in enumerate(oups):
+        #         einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [N, dw])
+        #         if i > 0:
+        #             tf.get_variable_scope().reuse_variables()
+        #
+        #         if self.loop_function is not None and prev is not None:
+        #             with tf.variable_scope("loop_function", reuse=True):
+        #                 einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i)
+        #                 h = tf.gather(h, index)  # update prev state
+        #                 state = tuple(tf.gather(s, index) for s in state)  # update prev state
+        #                 for j, symbol in enumerate(symbols):
+        #                     symbols[j] = tf.gather(symbol, index)  # update prev symbols
+        #                 for j, output in enumerate(outputs):
+        #                     outputs[j] = tf.gather(output, index)  # update prev outputs
+        #                 for j, attn_w in enumerate(attn_ws):
+        #                     attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
+        #                 for j, p_gen in enumerate(p_gens):
+        #                     p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
+        #                 symbols.append(prev_symbol)
+        #
+        #         attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=1, memory=memory,
+        #                                            mask=self.c_mask, bias=False,
+        #                                            is_training=False if self.loop_function is not None else True,
+        #                                            return_weights=True)
+        #
+        #         attn_w = tf.reshape(attn_w, [-1, PL])
+        #         attn_ws.append(attn_w)
+        #         # update cell state
+        #         attn = tf.reshape(attn, [-1, d])
+        #         cinp = tf.concat([einp, attn], 1)
+        #         h, state = self.cell(cinp, state)
+        #
+        #         with tf.variable_scope("AttnOutputProjection"):
+        #             # generation prob
+        #             p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
+        #             p_gens.append(p_gen)
+        #             # generation
+        #             output = _linear([h] + [cinp], output_size=dw * 2, bias=False, scope="output")
+        #             output = tf.reshape(output, [-1, dw, 2])
+        #             output = tf.reduce_max(output, 2)  # maxout
+        #             outputs.append(output)
+        #
+        #         if self.loop_function is not None:
+        #             prev = output
+        #
+        #     if self.loop_function is not None:
+        #         # process the last symbol
+        #         einp, prev_probs, index, prev_symbol = self.loop_function(prev, attn_w, p_gen, prev_probs, i + 1)
+        #         for j, symbol in enumerate(symbols):
+        #             symbols[j] = tf.gather(symbol, index)  # update prev symbols
+        #         for j, output in enumerate(outputs):
+        #             outputs[j] = tf.gather(output, index)  # update prev outputs
+        #         for j, attn_w in enumerate(attn_ws):
+        #             attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
+        #         for j, p_gen in enumerate(p_gens):
+        #             p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
+        #         symbols.append(prev_symbol)
+        #
+        #         # output the final best result of beam search
+        #         # for k, symbol in enumerate(symbols):
+        #         #     symbols[k] = tf.gather(symbol, 0)
+        #         for k, output in enumerate(outputs):
+        #             outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
+        #         for k, attn_w in enumerate(attn_ws):
+        #             attn_ws[k] = tf.expand_dims(tf.gather(attn_w, 0), 0)
+        #         for k, p_gen in enumerate(p_gens):
+        #             p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
+        #
+        #     self.batch_loss, self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
+        #     self.symbols = symbols
 
         # with tf.variable_scope("Output_Layer"):
         #     start_logits = tf.squeeze(
