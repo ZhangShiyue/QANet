@@ -325,8 +325,9 @@ def dot_product_attention(q,
         shapes = [x if x != None else -1 for x in logits.shape.as_list()]
         if mask is not None:
             mask = tf.cast(tf.reshape(mask, [-1, 1, 1, shapes[-1]]), tf.int32)
+            mask = tf.tile(mask, [1, 1, shapes[-2], 1])
             if causality:
-                future_blind = tf.matrix_band_part(mask, -1, 0) - tf.matrix_band_part(mask, 0, 0)
+                future_blind = tf.matrix_band_part(mask, -1, 0)
                 mask *= future_blind
             logits = mask_logits(logits, mask)
 

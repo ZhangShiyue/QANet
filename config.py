@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro, rerank_prepro
-from main import train, test, test_beam, test_rerank, demo, tmp
+from main import train, test, test_beam, test_rerank, tmp
 
 flags = tf.flags
 
@@ -110,7 +110,7 @@ flags.DEFINE_integer("batch_size", 16, "Batch size")
 flags.DEFINE_integer("test_batch_size", 1, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
 flags.DEFINE_integer("num_steps", 300000, "Number of steps")
-flags.DEFINE_integer("checkpoint", 20000, "checkpoint to save and evaluate the model")
+flags.DEFINE_integer("checkpoint", 5, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
 flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
@@ -130,7 +130,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 def main(_):
     config = flags.FLAGS
@@ -152,8 +152,6 @@ def main(_):
         test_beam(config)
     elif config.mode == "test_rerank":
         test_rerank(config)
-    elif config.mode == "demo":
-        demo(config)
     elif config.mode == "tmp":
         tmp(config)
     else:

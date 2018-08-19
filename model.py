@@ -4,7 +4,7 @@ from layers import initializer, regularizer, residual_block, highway, conv, mask
 
 
 class Model(object):
-    def __init__(self, config, batch, word_mat=None, char_mat=None, trainable=True, rerank=False, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, trainable=True, rerank=False, graph=None):
         self.config = config
         self.rerank = rerank
         self.graph = graph if graph is not None else tf.Graph()
@@ -13,12 +13,14 @@ class Model(object):
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            if self.rerank:
-                self.c, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id, self.can_id = batch.get_next()
-                # self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + config.test_para_limit - 4))
-            else:
-                self.c, self.q, self.a, self.ch, self.qh, self.y1, self.y2, self.qa_id = batch.get_next()
-                # self.cv = self.cv + tf.constant([1] * 4 + [0] * (len(word_mat) + (config.para_limit if trainable else config.test_para_limit) - 4))
+            self.c = tf.placeholder(tf.int32, [None, config.para_limit], "context")
+            self.q = tf.placeholder(tf.int32, [None, config.ques_limit], "question")
+            self.a = tf.placeholder(tf.int32, [None, config.ans_limit], "answer")
+            self.ch = tf.placeholder(tf.int32, [None, config.para_limit, config.char_limit], "context_char")
+            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit, config.char_limit], "question_char")
+            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit], "answer_index1")
+            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit], "answer_index2")
+            self.qa_id = tf.placeholder(tf.int32, [config.batch_size], "qa_id")
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32), trainable=False)
@@ -192,13 +194,16 @@ class Model(object):
 
             # out projection
             self.dec = conv(self.dec, dw, name="out_proj")
+            self.dec = tf.slice(self.dec, [0, 0, 0], [N, AL - 1, dw])
 
             # output
-            logits = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
+            self.logits = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
+            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.logits, dimension=-1)), [-1, AL - 1])
 
             # loss
-            weight = tf.reshape(tf.cast(self.a_mask, tf.float32) * tf.constant([0.] + [1.] * (AL - 1)), [-1])
-            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=tf.reshape(self.a, [-1])) * weight
+            weight = tf.reshape(tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1])), [-1])
+            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits,
+                        labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])) * weight
             self.loss = tf.reduce_sum(loss) / (tf.reduce_sum(weight) + 1e-12)
 
         # with tf.variable_scope("Output_Layer"):
