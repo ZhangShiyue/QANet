@@ -96,7 +96,7 @@ def layer_dropout(inputs, residual, dropout):
     return tf.cond(pred, lambda: residual, lambda: tf.nn.dropout(inputs, 1.0 - dropout) + residual)
 
 
-def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, mask=None,
+def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, memory=None, mask=None, causality=False,
                    num_filters=128, input_projection=False, num_heads=8,
                    seq_len=None, scope="res_block", is_training=True,
                    reuse=None, bias=True, dropout=0.0):
@@ -104,14 +104,15 @@ def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, mask=None,
         if input_projection:
             inputs = conv(inputs, num_filters, name="input_projection", reuse=reuse)
         outputs = inputs
-        sublayer = 1
+        sublayer = 0
         total_sublayers = (num_conv_layers + 2) * num_blocks
         for i in range(num_blocks):
             outputs = add_timing_signal_1d(outputs)
             outputs, sublayer = conv_block(outputs, num_conv_layers, kernel_size, num_filters,
                                            seq_len=seq_len, scope="encoder_block_%d" % i, reuse=reuse, bias=bias,
                                            dropout=dropout, sublayers=(sublayer, total_sublayers))
-            outputs, sublayer = self_attention_block(outputs, num_filters, seq_len, mask=mask, num_heads=num_heads,
+            outputs, sublayer = self_attention_block(outputs, num_filters, seq_len, memory=memory,
+                                                     mask=mask, causality=causality, num_heads=num_heads,
                                                      scope="self_attention_layers%d" % i, reuse=reuse,
                                                      is_training=is_training,
                                                      bias=bias, dropout=dropout, sublayers=(sublayer, total_sublayers))
@@ -125,6 +126,7 @@ def conv_block(inputs, num_conv_layers, kernel_size, num_filters,
         outputs = tf.expand_dims(inputs, 2)
         l, L = sublayers
         for i in range(num_conv_layers):
+            l += 1
             residual = outputs
             outputs = norm_fn(outputs, scope="layer_norm_%d" % i, reuse=reuse)
             if (i) % 2 == 0:
@@ -134,36 +136,39 @@ def conv_block(inputs, num_conv_layers, kernel_size, num_filters,
                                                       scope="depthwise_conv_layers_%d" % i, is_training=is_training,
                                                       reuse=reuse)
             outputs = layer_dropout(outputs, residual, dropout * float(l) / L)
-            l += 1
+
         return tf.squeeze(outputs, 2), l
 
 
-def self_attention_block(inputs, num_filters, seq_len, mask=None, num_heads=8,
+def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, causality=False, num_heads=8,
                          scope="self_attention_ffn", reuse=None, is_training=True,
                          bias=True, dropout=0.0, sublayers=(1, 1)):
     with tf.variable_scope(scope, reuse=reuse):
         l, L = sublayers
         # Self attention
+        l += 1
         outputs = norm_fn(inputs, scope="layer_norm_1", reuse=reuse)
         outputs = tf.nn.dropout(outputs, 1.0 - dropout)
-        outputs = multihead_attention(outputs, num_filters,
-                                      num_heads=num_heads, seq_len=seq_len, reuse=reuse,
+        outputs = multihead_attention(outputs, num_filters, num_heads=num_heads,
+                                      memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
                                       mask=mask, is_training=is_training, bias=bias, dropout=dropout)
         residual = layer_dropout(outputs, inputs, dropout * float(l) / L)
-        l += 1
+
         # Feed-forward
+        l += 1
         outputs = norm_fn(residual, scope="layer_norm_2", reuse=reuse)
         outputs = tf.nn.dropout(outputs, 1.0 - dropout)
         outputs = conv(outputs, num_filters, True, tf.nn.relu, name="FFN_1", reuse=reuse)
         outputs = conv(outputs, num_filters, True, None, name="FFN_2", reuse=reuse)
         outputs = layer_dropout(outputs, residual, dropout * float(l) / L)
-        l += 1
+
         return outputs, l
 
 
 def multihead_attention(queries, units, num_heads,
                         memory=None,
                         seq_len=None,
+                        causality=False,
                         scope="Multi_Head_Attention",
                         reuse=None,
                         mask=None,
@@ -186,6 +191,7 @@ def multihead_attention(queries, units, num_heads,
         x = dot_product_attention(Q, K, V,
                                   bias=bias,
                                   seq_len=seq_len,
+                                  causality=causality,
                                   mask=mask,
                                   is_training=is_training,
                                   return_weights=return_weights,
@@ -229,7 +235,7 @@ def conv(inputs, output_size, bias=None, activation=None, kernel_size=1, name="c
 
 
 def mask_logits(inputs, mask, mask_value=-1e30):
-    shapes = inputs.shape.as_list()
+    # shapes = inputs.shape.as_list()
     mask = tf.cast(mask, tf.float32)
     return inputs + mask_value * (1 - mask)
 
@@ -286,6 +292,7 @@ def dot_product_attention(q,
                           v,
                           bias,
                           seq_len=None,
+                          causality=False,
                           mask=None,
                           is_training=True,
                           return_weights=False,
@@ -315,10 +322,14 @@ def dot_product_attention(q,
                                 regularizer=regularizer,
                                 initializer=tf.zeros_initializer())
             logits += b
+        shapes = [x if x != None else -1 for x in logits.shape.as_list()]
         if mask is not None:
-            shapes = [x if x != None else -1 for x in logits.shape.as_list()]
-            mask = tf.reshape(mask, [-1, 1, 1, shapes[-1]])
+            mask = tf.cast(tf.reshape(mask, [-1, 1, 1, shapes[-1]]), tf.int32)
+            if causality:
+                future_blind = tf.matrix_band_part(mask, -1, 0) - tf.matrix_band_part(mask, 0, 0)
+                mask *= future_blind
             logits = mask_logits(logits, mask)
+
         weights = tf.nn.softmax(logits, name="attention_weights")
         # dropping out the attention links for each of the heads
         weights = tf.nn.dropout(weights, 1.0 - dropout)

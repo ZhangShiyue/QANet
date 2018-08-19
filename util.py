@@ -20,7 +20,7 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
             features = tf.parse_single_example(example,
                                                features={
                                                    "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "context_voc": tf.FixedLenFeature([], tf.string),
+                                                   # "context_voc": tf.FixedLenFeature([], tf.string),
                                                    "ques_idxs": tf.FixedLenFeature([], tf.string),
                                                    "ans_idxs": tf.FixedLenFeature([], tf.string),
                                                    "context_char_idxs": tf.FixedLenFeature([], tf.string),
@@ -34,7 +34,7 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
             features = tf.parse_single_example(example,
                                                features={
                                                    "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "context_voc": tf.FixedLenFeature([], tf.string),
+                                                   # "context_voc": tf.FixedLenFeature([], tf.string),
                                                    "ques_idxs": tf.FixedLenFeature([], tf.string),
                                                    "ans_idxs": tf.FixedLenFeature([], tf.string),
                                                    "context_char_idxs": tf.FixedLenFeature([], tf.string),
@@ -45,8 +45,8 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
                                                })
         context_idxs = tf.reshape(tf.decode_raw(
             features["context_idxs"], tf.int32), [para_limit])
-        context_voc = tf.reshape(tf.decode_raw(
-            features["context_voc"], tf.int32), [voc_size])
+        # context_voc = tf.reshape(tf.decode_raw(
+        #     features["context_voc"], tf.int32), [voc_size])
         ques_idxs = tf.reshape(tf.decode_raw(
             features["ques_idxs"], tf.int32), [ques_limit])
         ans_idxs = tf.reshape(tf.decode_raw(
@@ -62,9 +62,9 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
         qa_id = features["id"]
         if is_rerank:
             can_id = features["cid"]
-            return context_idxs, context_voc, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id, can_id
+            return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id, can_id
         else:
-            return context_idxs, context_voc, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id
+            return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id
     return parse
 
 

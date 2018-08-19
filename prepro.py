@@ -117,14 +117,20 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
         print("{} tokens have corresponding embedding vector".format(
                 len(filtered_elements)))
 
+    GO  = "--GO--"
     NULL = "--NULL--"
     OOV = "--OOV--"
+    EOS = "--EOS--"
 
-    token2idx_dict = {token: idx for idx, token in enumerate(embedding_dict.keys(), 2)}
+    token2idx_dict = {token: idx for idx, token in enumerate(embedding_dict.keys(), 4)}
     token2idx_dict[NULL] = 0
     token2idx_dict[OOV] = 1
+    token2idx_dict[GO] = 2
+    token2idx_dict[EOS] = 3
     embedding_dict[NULL] = np.random.normal(size=vec_size)
     embedding_dict[OOV] = np.random.normal(size=vec_size)
+    embedding_dict[GO] = np.random.normal(size=vec_size)
+    embedding_dict[EOS] = np.random.normal(size=vec_size)
 
     idx2emb_dict = {idx: embedding_dict[token]
                     for token, idx in token2idx_dict.items()}
@@ -219,7 +225,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
-        context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
+        # context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
@@ -230,7 +236,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
             for each in (word, word.lower(), word.capitalize(), word.upper()):
                 if each in word2idx_dict:
                     return word2idx_dict[each]
-            return len(word2idx_dict) + i
+            # return len(word2idx_dict) + i
+            return 1
 
         def _get_char(char):
             if char in char2idx_dict:
@@ -240,8 +247,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         for i, token in enumerate(example["context_tokens"]):
             wid = _get_word(token, i)
             context_idxs[i] = wid
-            if wid < len(word2idx_dict):
-                context_voc[wid] = 1
+            # if wid < len(word2idx_dict):
+            #     context_voc[wid] = 1
 
         for i, token in enumerate(example["ques_tokens"]):
             ques_idxs[i] = _get_word(token, i)
@@ -266,7 +273,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
 
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
-            "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
+            # "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
