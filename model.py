@@ -188,7 +188,7 @@ class Model(object):
                            dropout=self.dropout))
 
         with tf.variable_scope("Decoder"):
-            self.dec = residual_block(a,
+            dec, attention_weights = residual_block(a,
                                     memory=self.enc[1],
                                     num_blocks=4,
                                     num_conv_layers=0,
@@ -198,21 +198,35 @@ class Model(object):
                                     num_heads=nh,
                                     scope="Memory_Attention_Block",
                                     bias=False,
-                                    dropout=self.dropout)
+                                    dropout=self.dropout,
+                                    return_attention_weights=True)
 
             # out projection
-            self.dec = conv(self.dec, dw, name="out_proj")
-            self.dec = tf.slice(self.dec, [0, 0, 0], [N, AL - 1, dw])
+            self.dec = tf.slice(conv(dec, dw, name="out_proj"), [0, 0, 0], [N, AL - 1, dw])
+            # the probability of generation
+            self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
 
-            # output
-            self.logits = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
-            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.logits, dimension=-1)), [-1, AL - 1])
+            # generation word probs
+            self.gen_probs = tf.nn.softmax(tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True))
+            # copy word probs
+            self.attention_weights = tf.reduce_mean(attention_weights, 1)
+            batch_nums_c = tf.tile(tf.expand_dims(tf.range(N), 1), [1, PL])
+            indices_c = tf.stack((batch_nums_c, self.c), axis=2)
+            batch_nums = tf.expand_dims(tf.range(N), 1)
+            # combine copy and generation probs
+            dist_c = tf.scatter_nd(indices_c, attn_w, [N, self.num_voc])
+            logit = tf.matmul(output, self.word_mat, transpose_b=True)
+            dist_g = tf.nn.softmax(logit)
+            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
+
+            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.gen_probs, dimension=-1)), [-1, AL - 1])
 
             # loss
             weight = tf.reshape(tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1])), [-1])
             loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits,
                         labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])) * weight
             self.loss = tf.reduce_sum(loss) / (tf.reduce_sum(weight) + 1e-12)
+
 
         # with tf.variable_scope("Output_Layer"):
         #     start_logits = tf.squeeze(

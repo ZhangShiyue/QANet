@@ -99,24 +99,28 @@ def layer_dropout(inputs, residual, dropout):
 def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, memory=None, mask=None, causality=False,
                    num_filters=128, input_projection=False, num_heads=8,
                    seq_len=None, scope="res_block", is_training=True,
-                   reuse=None, bias=True, dropout=0.0):
+                   reuse=None, bias=True, dropout=0.0, return_attention_weights=False):
     with tf.variable_scope(scope, reuse=reuse):
         if input_projection:
             inputs = conv(inputs, num_filters, name="input_projection", reuse=reuse)
         outputs = inputs
         sublayer = 0
         total_sublayers = (num_conv_layers + 2) * num_blocks
+        attention_weights = None
         for i in range(num_blocks):
             outputs = add_timing_signal_1d(outputs)
             outputs, sublayer = conv_block(outputs, num_conv_layers, kernel_size, num_filters,
                                            seq_len=seq_len, scope="encoder_block_%d" % i, reuse=reuse, bias=bias,
                                            dropout=dropout, sublayers=(sublayer, total_sublayers))
-            outputs, sublayer = self_attention_block(outputs, num_filters, seq_len, memory=memory,
+            outputs, sublayer, attention_weights = self_attention_block(outputs, num_filters, seq_len, memory=memory,
                                                      mask=mask, causality=causality, num_heads=num_heads,
                                                      scope="self_attention_layers%d" % i, reuse=reuse,
                                                      is_training=is_training,
                                                      bias=bias, dropout=dropout, sublayers=(sublayer, total_sublayers))
-        return outputs
+        if return_attention_weights:
+            return outputs, attention_weights
+        else:
+            return outputs
 
 
 def conv_block(inputs, num_conv_layers, kernel_size, num_filters,
@@ -149,7 +153,7 @@ def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, c
         l += 1
         outputs = norm_fn(inputs, scope="layer_norm_1", reuse=reuse)
         outputs = tf.nn.dropout(outputs, 1.0 - dropout)
-        outputs = multihead_attention(outputs, num_filters, num_heads=num_heads,
+        outputs, attention_weights = multihead_attention(outputs, num_filters, num_heads=num_heads,
                                       memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
                                       mask=mask, is_training=is_training, bias=bias, dropout=dropout)
         residual = layer_dropout(outputs, inputs, dropout * float(l) / L)
@@ -162,7 +166,7 @@ def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, c
         outputs = conv(outputs, num_filters, True, None, name="FFN_2", reuse=reuse)
         outputs = layer_dropout(outputs, residual, dropout * float(l) / L)
 
-        return outputs, l
+        return outputs, l, attention_weights
 
 
 def multihead_attention(queries, units, num_heads,
@@ -188,19 +192,15 @@ def multihead_attention(queries, units, num_heads,
 
         key_depth_per_head = units // num_heads
         Q *= key_depth_per_head ** -0.5
-        x = dot_product_attention(Q, K, V,
+        x, a = dot_product_attention(Q, K, V,
                                   bias=bias,
                                   seq_len=seq_len,
                                   causality=causality,
                                   mask=mask,
                                   is_training=is_training,
-                                  return_weights=return_weights,
                                   scope="dot_product_attention",
                                   reuse=reuse, dropout=dropout)
-        if return_weights:
-            return combine_last_two_dimensions(tf.transpose(x[0], [0, 2, 1, 3])), x[1]
-        else:
-            return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3]))
+        return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3])), a
 
 
 def conv(inputs, output_size, bias=None, activation=None, kernel_size=1, name="conv", reuse=None):
@@ -295,7 +295,6 @@ def dot_product_attention(q,
                           causality=False,
                           mask=None,
                           is_training=True,
-                          return_weights=False,
                           scope=None,
                           reuse=None,
                           dropout=0.0):
@@ -312,10 +311,10 @@ def dot_product_attention(q,
     """
     with tf.variable_scope(scope, default_name="dot_product_attention", reuse=reuse):
         # [batch, num_heads, query_length, memory_length]
-        if is_training:
-            logits = tf.matmul(q, k, transpose_b=True)
-        else:
-            logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
+        # if is_training:
+        logits = tf.matmul(q, k, transpose_b=True)
+        # else:
+        #     logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
         if bias:
             b = tf.get_variable("bias",
                                 logits.shape[-1],
@@ -334,14 +333,11 @@ def dot_product_attention(q,
         weights = tf.nn.softmax(logits, name="attention_weights")
         # dropping out the attention links for each of the heads
         weights = tf.nn.dropout(weights, 1.0 - dropout)
-        if is_training:
-            res = tf.matmul(weights, v)
-        else:
-            res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
-        if return_weights:
-            return res, weights
-        else:
-            return res
+        # if is_training:
+        res = tf.matmul(weights, v)
+        # else:
+        #     res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
+        return res, weights
 
 
 def combine_last_two_dimensions(x):
