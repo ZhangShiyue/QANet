@@ -67,12 +67,14 @@ def process_file(filename, data_type, word_counter, char_counter):
                     y1s, y2s = [], []
                     answer_texts = []
                     answer_tokens = []
+                    answer_chars = []
                     for answer in qa["answers"]:
                         answer_text = answer["text"].replace(u'\u2013', '-')
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
                         answer_tokens.append(["--GO--"] + word_tokenize(answer_text) + ["--EOS--"])
+                        answer_chars.append([list(token) for token in answer_tokens[-1]])
                         max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
                         for idx, span in enumerate(spans):
@@ -82,8 +84,9 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1s.append(y1)
                         y2s.append(y2)
                     example = {"context_tokens": context_tokens, "context_chars": context_chars,
-                               "ques_tokens": ques_tokens, "ans_tokens": answer_tokens,
-                               "ques_chars": ques_chars, "y1s": y1s, "y2s": y2s, "id": total}
+                               "ques_tokens": ques_tokens, "ques_chars": ques_chars,
+                               "ans_tokens": answer_tokens, "ans_chars": answer_chars,
+                               "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
                         "context": context, "spans": spans, "answers": answer_texts, "uuid": qa["id"]}
@@ -227,8 +230,9 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
         # context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
-        ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
+        ans_idxs = np.zeros([ans_limit], dtype=np.int32)
+        ans_char_idxs = np.zeros([ans_limit, char_limit], dtype=np.int32)
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
 
@@ -268,6 +272,12 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
                     break
                 ques_char_idxs[i, j] = _get_char(char)
 
+        for i, token in enumerate(example["ans_chars"][0]):
+            for j, char in enumerate(token):
+                if j == char_limit:
+                    break
+                ans_char_idxs[i, j] = _get_char(char)
+
         start, end = example["y1s"][-1], example["y2s"][-1]
         y1[start], y2[end] = 1.0, 1.0
 
@@ -278,6 +288,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
             "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
+            "ans_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_char_idxs.tostring()])),
             "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
             "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
             "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[example["id"]]))

@@ -58,9 +58,10 @@ def train(config):
             train_next_element = train_iterator.get_next()
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
-                c, q, a, ch, qh, y1, y2, qa_id = sess.run(train_next_element)
+                c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.y1: y1, model.y2: y2,
+                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                    model.y1: y1, model.y2: y2,
                     model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -101,18 +102,18 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, itera
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
-        c, q, a, ch, qh, y1, y2, qa_id = sess.run(next_element)
+        c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
         shapes = a.shape
         a = np.zeros(shapes)
         a[:, 0] = [2] * config.batch_size
         for i in range(1, config.ans_limit):
             preds = sess.run(model.preds, feed_dict={model.c: c, model.q: q, model.a: a,
-                     model.ch: ch, model.qh: qh, model.y1: y1, model.y2: y2})
+                     model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2})
             a[:, i] = preds[:, i - 1]
         for qid, symbols in zip(qa_id, a):
             symbols = list(symbols)
             if 3 in symbols:
-                symbols = symbols[:symbols.index(2)]
+                symbols = symbols[:symbols.index(3)]
             answer = u' '.join([id2word[symbol] for symbol in symbols][1:])
             # deal with special symbols like %, $ etc
             elim_pre_spas = [u' %', u" 's", u' ,']
@@ -158,7 +159,8 @@ def test(config):
         test_batch = get_dataset(config.test_record_file, get_record_parser(
                 config, len(word_mat) + config.test_para_limit, is_test=True),
                                  config, is_test=True).make_one_shot_iterator()
-        model = Model(config, test_batch, word_mat, char_mat, trainable=False, graph=g)
+        test_next_element = test_batch.get_next()
+        model = Model(config, word_mat, char_mat, trainable=False, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -169,69 +171,41 @@ def test(config):
             saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
             if config.decay < 1.0:
                 sess.run(model.assign_vars)
-            losses = []
-            answer_dict_g = {}
-            answer_dict_d = {}
-            res_g_b = {}
-            res_d_b = {}
+            answer_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
-                qa_id, loss, yp1, yp2, byp1, byp2, symbols = sess.run(
-                        [model.qa_id, model.loss, model.yp1, model.yp2, model.byp1, model.byp2, model.symbols])
-                # bsymbols = zip(*symbols)
-                # answers = []
-                # for symbols in bsymbols:
-                #     if 2 in symbols:
-                #         symbols = symbols[:symbols.index(2)]
-                #     context = eval_file[str(qa_id[0])]["context"].replace(
-                #             "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                #     context_tokens = word_tokenize(context)
-                #     answer = u' '.join([id2word[symbol] if symbol in id2word
-                #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                #     # deal with special symbols like %, $ etc
-                #     elim_pre_spas = [u' %', u" 's", u' ,']
-                #     for s in elim_pre_spas:
-                #         if s in answer:
-                #             answer = s[1:].join(answer.split(s))
-                #     elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                #     for s in elim_beh_spas:
-                #         if s in answer:
-                #             answer = s[:-1].join(answer.split(s))
-                #     elim_both_spas = [u' - ']
-                #     for s in elim_both_spas:
-                #         if s in answer:
-                #             answer = s[1:-1].join(answer.split(s))
-                #     answers.append(answer)
-                # res_g_b[str(qa_id[0])] = answers
-                # answer_dict_g_ = {str(qa_id[0]): answers[0]}
-                # remapped_dict_ = {eval_file[str(qa_id[0])]["uuid"]: answers[0]}
-                # answer_dict_g.update(answer_dict_g_)
+                c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
+                shapes = a.shape
+                a = np.zeros(shapes)
+                a[:, 0] = [2] * config.batch_size
+                for i in range(1, config.test_ans_limit):
+                    preds = sess.run(model.preds, feed_dict={model.c: c, model.q: q, model.a: a,
+                         model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2})
+                    a[:, i] = preds[:, i - 1]
+                for qid, symbols in zip(qa_id, a):
+                    symbols = list(symbols)
+                    if 3 in symbols:
+                        symbols = symbols[:symbols.index(3)]
+                    answer = u' '.join([id2word[symbol] for symbol in symbols][1:])
+                    # deal with special symbols like %, $ etc
+                    elim_pre_spas = [u' %', u" 's", u' ,']
+                    for s in elim_pre_spas:
+                        if s in answer:
+                            answer = s[1:].join(answer.split(s))
+                    elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                    for s in elim_beh_spas:
+                        if s in answer:
+                            answer = s[:-1].join(answer.split(s))
+                    elim_both_spas = [u' - ']
+                    for s in elim_both_spas:
+                        if s in answer:
+                            answer = s[1:-1].join(answer.split(s))
+                    answer_dict_ = {str(qid): answer}
+                    answer_dict.update(answer_dict_)
 
-                # answer_dict_d_, _ = convert_tokens(
-                #     eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                # remapped_dict.update(remapped_dict_)
-                losses.append(loss)
-                # ==== get prediction model beam search results ====
-                answers = []
-                for yp1, yp2 in zip(byp1, byp2):
-                    answer_dict_, remapped_dict_ = convert_tokens(
-                        eval_file, qa_id.tolist(), [yp1], [yp2])
-                    answers.append(answer_dict_.values()[0])
-                # res_d_b[str(qa_id[0])] = answers
-                answer_dict_d_ = {str(qa_id[0]): answers[0]}
-                answer_dict_d.update(answer_dict_d_)
-
-            # save("{}{}.json".format(config.res_g_b_file, config.beam_size), res_g_b, "res_g_b")
-            # save("{}{}.json".format(config.res_d_b_file, config.beam_size), res_d_b, "res_d_b")
-
-            loss = np.mean(losses)
-            metrics = evaluate(eval_file, answer_dict_d)
-            with open("{}_d_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
-                json.dump(answer_dict_d, fh)
+            metrics = evaluate(eval_file, answer_dict)
+            with open("{}.json".format(config.answer_file), "w") as fh:
+                json.dump(answer_dict, fh)
             print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
-            # metrics = evaluate(eval_file, answer_dict_g)
-            # with open("{}_g_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
-            #     json.dump(answer_dict_g, fh)
-            # print("G: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
 
 

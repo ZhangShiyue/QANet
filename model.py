@@ -13,13 +13,14 @@ class Model(object):
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            self.c = tf.placeholder(tf.int32, [None, config.para_limit], "context")
-            self.q = tf.placeholder(tf.int32, [None, config.ques_limit], "question")
-            self.a = tf.placeholder(tf.int32, [None, config.ans_limit], "answer")
-            self.ch = tf.placeholder(tf.int32, [None, config.para_limit, config.char_limit], "context_char")
-            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit, config.char_limit], "question_char")
-            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit], "answer_index1")
-            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit], "answer_index2")
+            self.c = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit], "context")
+            self.q = tf.placeholder(tf.int32, [None, config.ques_limit if trainable else config.test_ques_limit], "question")
+            self.a = tf.placeholder(tf.int32, [None, config.ans_limit if trainable else config.test_ans_limit], "answer")
+            self.ch = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit, config.char_limit], "context_char")
+            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit if trainable else config.test_ques_limit, config.char_limit], "question_char")
+            self.ah = tf.placeholder(tf.int32, [None, config.ans_limit if trainable else config.test_ans_limit, config.char_limit], "answer_char")
+            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit], "answer_index1")
+            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit], "answer_index2")
             self.qa_id = tf.placeholder(tf.int32, [config.batch_size], "qa_id")
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
@@ -54,6 +55,8 @@ class Model(object):
                     tf.cast(tf.cast(self.ch, tf.bool), tf.int32), axis=2), [-1])
             self.qh_len = tf.reshape(tf.reduce_sum(
                     tf.cast(tf.cast(self.qh, tf.bool), tf.int32), axis=2), [-1])
+            self.ah_len = tf.reshape(tf.reduce_sum(
+                    tf.cast(tf.cast(self.ah, tf.bool), tf.int32), axis=2), [-1])
 
             self.forward()
             total_params()
@@ -71,8 +74,7 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, AL, CL, d, dc, nh, dw = config.test_batch_size if self.loop_function or self.rerank else config.batch_size, \
-                                       self.c_maxlen, self.q_maxlen, self.a_maxlen, \
+        N, PL, QL, AL, CL, d, dc, nh, dw = config.batch_size, self.c_maxlen, self.q_maxlen, self.a_maxlen, \
                                        config.char_limit, config.hidden, config.char_dim, config.num_heads, config.glove_dim
 
         with tf.variable_scope("Input_Embedding_Layer"):
@@ -80,53 +82,74 @@ class Model(object):
                     self.char_mat, self.ch), [N * PL, CL, dc])
             qh_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.qh), [N * QL, CL, dc])
+            ah_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.ah), [N * AL, CL, dc])
             ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
             qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
+            ah_emb = tf.nn.dropout(ah_emb, 1.0 - 0.5 * self.dropout)
 
             # Bidaf style conv-highway encoder
             ch_emb = conv(ch_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=None)
             qh_emb = conv(qh_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
+            ah_emb = conv(ah_emb, dc,
+                          bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
 
             ch_emb = tf.reduce_max(ch_emb, axis=1)
             qh_emb = tf.reduce_max(qh_emb, axis=1)
+            ah_emb = tf.reduce_max(ah_emb, axis=1)
 
             ch_emb = tf.reshape(ch_emb, [N, PL, ch_emb.shape[-1]])
-            qh_emb = tf.reshape(qh_emb, [N, QL, ch_emb.shape[-1]])
+            qh_emb = tf.reshape(qh_emb, [N, QL, qh_emb.shape[-1]])
+            ah_emb = tf.reshape(ah_emb, [N, AL, ah_emb.shape[-1]])
 
             c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.c), 1.0 - self.dropout)
             q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.q), 1.0 - self.dropout)
+            a_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.a), 1.0 - self.dropout)
 
             c_emb = tf.concat([c_emb, ch_emb], axis=2)
             q_emb = tf.concat([q_emb, qh_emb], axis=2)
+            a_emb = tf.concat([a_emb, ah_emb], axis=2)
 
             c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
             q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
+            a_emb = highway(a_emb, scope="highway", dropout=self.dropout, reuse=True)
 
         with tf.variable_scope("Encoder"):
             c = residual_block(c_emb,
-                               num_blocks=1,
-                               num_conv_layers=4,
+                               num_blocks=4,
+                               num_conv_layers=0,
                                kernel_size=7,
                                mask=self.c_mask,
                                num_filters=d,
                                num_heads=nh,
-                               seq_len=self.c_len,
                                scope="Input_Encoder_Block",
                                bias=False,
                                dropout=self.dropout,
                                input_projection=True)
             q = residual_block(q_emb,
-                               num_blocks=1,
-                               num_conv_layers=4,
+                               num_blocks=4,
+                               num_conv_layers=0,
                                kernel_size=7,
                                mask=self.q_mask,
                                num_filters=d,
                                num_heads=nh,
-                               seq_len=self.q_len,
                                scope="Input_Encoder_Block",
                                reuse=True,  # Share the weights between passage and question
+                               bias=False,
+                               dropout=self.dropout,
+                               input_projection=True)
+            a = residual_block(a_emb,
+                               num_blocks=4,
+                               num_conv_layers=0,
+                               kernel_size=7,
+                               mask=self.a_mask,
+                               causality=True,
+                               num_filters=d,
+                               num_heads=nh,
+                               scope="Input_Encoder_Block",
+                               reuse=True,  # Share the weights between passage and question and answer
                                bias=False,
                                dropout=self.dropout,
                                input_projection=True)
@@ -152,7 +175,7 @@ class Model(object):
             #     if i % 2 == 0:  # dropout every 2 blocks
             #         self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
             self.enc.append(residual_block(self.enc[0],
-                           num_blocks=7,
+                           num_blocks=4,
                            num_conv_layers=2,
                            kernel_size=5,
                            mask=self.c_mask,
@@ -165,26 +188,11 @@ class Model(object):
                            dropout=self.dropout))
 
         with tf.variable_scope("Decoder"):
-            # self-attention
-            self.dec = residual_block(tf.nn.embedding_lookup(self.word_mat, self.a),
-                               num_blocks=7,
-                               num_conv_layers=0,
-                               kernel_size=0,
-                               mask=self.a_mask,
-                               causality=True,
-                               num_filters=d,
-                               num_heads=nh,
-                               scope="Output_Encoder_Block",
-                               bias=False,
-                               dropout=self.dropout,
-                               input_projection=True)
-
-            # attend to memory
-            self.dec = residual_block(self.dec,
+            self.dec = residual_block(a,
                                     memory=self.enc[1],
-                                    num_blocks=7,
+                                    num_blocks=4,
                                     num_conv_layers=0,
-                                    kernel_size=0,
+                                    kernel_size=7,
                                     mask=self.c_mask,
                                     num_filters=d,
                                     num_heads=nh,
