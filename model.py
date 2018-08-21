@@ -22,13 +22,14 @@ class Model(object):
             self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit], "answer_index1")
             self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit], "answer_index2")
             self.qa_id = tf.placeholder(tf.int32, [config.batch_size], "qa_id")
+            self.batch_size = config.batch_size if trainable else config.test_batch_size
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
-            self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32), trainable=False)
-            self.num_voc = len(word_mat)
-            # additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
-            #                               [config.para_limit if trainable else config.test_para_limit, 1])
-            # self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
+            original_word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32), trainable=False)
+            additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
+                                          [config.para_limit if trainable else config.test_para_limit, 1])
+            self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
+            self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
 
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
@@ -74,8 +75,9 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, AL, CL, d, dc, nh, dw = config.batch_size, self.c_maxlen, self.q_maxlen, self.a_maxlen, \
-                                       config.char_limit, config.hidden, config.char_dim, config.num_heads, config.glove_dim
+        N, PL, QL, AL, CL, d, dc, nh, dw, NV = self.batch_size, self.c_maxlen, self.q_maxlen, self.a_maxlen, \
+                                       config.char_limit, config.hidden, config.char_dim, config.num_heads, \
+                                               config.glove_dim, self.num_voc
 
         with tf.variable_scope("Input_Embedding_Layer"):
             ch_emb = tf.reshape(tf.nn.embedding_lookup(
@@ -201,32 +203,34 @@ class Model(object):
                                     dropout=self.dropout,
                                     return_attention_weights=True)
 
-            # out projection
-            self.dec = tf.slice(conv(dec, dw, name="out_proj"), [0, 0, 0], [N, AL - 1, dw])
-            # the probability of generation
-            self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
-
             # generation word probs
-            self.gen_probs = tf.nn.softmax(tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True))
-            # copy word probs
-            self.attention_weights = tf.reduce_mean(attention_weights, 1)
-            batch_nums_c = tf.tile(tf.expand_dims(tf.range(N), 1), [1, PL])
-            indices_c = tf.stack((batch_nums_c, self.c), axis=2)
-            batch_nums = tf.expand_dims(tf.range(N), 1)
-            # combine copy and generation probs
-            dist_c = tf.scatter_nd(indices_c, attn_w, [N, self.num_voc])
-            logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            dist_g = tf.nn.softmax(logit)
-            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
+            self.dec = tf.slice(conv(dec, dw, name="out_proj"), [0, 0, 0], [N, AL - 1, dw])
+            self.gen_probs = tf.reshape(tf.nn.softmax(tf.matmul(tf.reshape(self.dec, [-1, dw]),
+                                                                self.word_mat, transpose_b=True)), [N, AL - 1, NV])
 
-            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.gen_probs, dimension=-1)), [-1, AL - 1])
+            # copy word probs
+            self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
+            self.attention_weights = tf.slice(tf.reduce_mean(attention_weights, 1), [0, 0, 0], [N, AL - 1, PL])
+            index1 = tf.tile(tf.reshape(tf.range(N), [N, 1, 1]), [1, AL - 1, PL])
+            index2 = tf.tile(tf.reshape(tf.range(AL - 1), [1, AL - 1, 1]), [N, 1, PL])
+            index3 = tf.tile(tf.expand_dims(self.c, 1), [1, AL - 1, 1])
+            indices_c =tf.stack((index1, index2, index3), axis=3)
+            self.copy_probs = tf.scatter_nd(indices_c, self.attention_weights, [N, AL - 1, NV])
+
+            # combine copy and generation probs
+            self.probs = self.p_gen * self.gen_probs + (1 - self.p_gen) * self.copy_probs
+            self.preds = tf.to_int32(tf.argmax(self.probs, axis=-1))
 
             # loss
-            weight = tf.reshape(tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1])), [-1])
-            loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits,
-                        labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])) * weight
-            self.loss = tf.reduce_sum(loss) / (tf.reduce_sum(weight) + 1e-12)
-
+            index1 = tf.tile(tf.expand_dims(tf.range(N), 1), [1, AL - 1])
+            index2 = tf.tile(tf.expand_dims(tf.range(AL - 1), 0), [N, 1])
+            index3 = tf.slice(self.a, [0, 1], [N, AL - 1])
+            indices_c =tf.stack((index1, index2, index3), axis=2)
+            gold_probs = tf.gather_nd(self.probs, indices_c)
+            crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
+            weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
+            self.loss = tf.reduce_mean(tf.reduce_sum(crossent * weight,
+                                                     axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
 
         # with tf.variable_scope("Output_Layer"):
         #     start_logits = tf.squeeze(

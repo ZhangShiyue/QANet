@@ -104,17 +104,22 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, itera
     for _ in tqdm(range(1, num_batches + 1)):
         c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
         shapes = a.shape
-        a = np.zeros(shapes)
+        a = np.zeros(shapes, dtype=np.int32)
         a[:, 0] = [2] * config.batch_size
         for i in range(1, config.ans_limit):
             preds = sess.run(model.preds, feed_dict={model.c: c, model.q: q, model.a: a,
                      model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2})
             a[:, i] = preds[:, i - 1]
+
         for qid, symbols in zip(qa_id, a):
+            context = eval_file[str(qid)]["context"].replace(
+                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+            context_tokens = word_tokenize(context)
             symbols = list(symbols)
             if 3 in symbols:
                 symbols = symbols[:symbols.index(3)]
-            answer = u' '.join([id2word[symbol] for symbol in symbols][1:])
+            answer = u' '.join([id2word[symbol] if symbol in id2word
+                        else context_tokens[symbol - len(id2word)] for symbol in symbols[1:]])
             # deal with special symbols like %, $ etc
             elim_pre_spas = [u' %', u" 's", u' ,']
             for s in elim_pre_spas:
