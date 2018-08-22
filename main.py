@@ -59,17 +59,14 @@ def train(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, enc, dec, logits, train_op = sess.run([model.loss, model.enc, model.dec1, model.logits, model.train_op], feed_dict={
+                loss, index, logits, train_op = sess.run([model.loss, model.index, model.logits, model.train_op], feed_dict={
                     model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
                     model.y1: y1, model.y2: y2,
                     model.qa_id: qa_id, model.dropout: config.dropout})
-                print sum(enc[0][0][1]), max(enc[0][0][1]), min(enc[0][0][1])
-                print sum(dec[0][1]), max(dec[0][1]), min(dec[0][1])
-                print sum(logits[0][1]), max(logits[0][1]), min(logits[0][1])
+                # print sum(enc[0][1]), max(enc[0][1]), min(enc[0][1])
                 # for i in range(32):
                 #     print max(logits[0][i]), min(logits[0][i])
                 #     print max(gen_probs[0][i]), min(gen_probs[0][i])
-                exit()
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])

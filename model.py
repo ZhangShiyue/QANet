@@ -119,8 +119,8 @@ class Model(object):
 
         with tf.variable_scope("Encoder"):
             c = residual_block(c_emb,
-                               num_blocks=4,
-                               num_conv_layers=0,
+                               num_blocks=1,
+                               num_conv_layers=4,
                                kernel_size=7,
                                mask=self.c_mask,
                                num_filters=d,
@@ -129,9 +129,10 @@ class Model(object):
                                bias=False,
                                dropout=self.dropout,
                                input_projection=True)
+            self.c1 = c
             q = residual_block(q_emb,
-                               num_blocks=4,
-                               num_conv_layers=0,
+                               num_blocks=1,
+                               num_conv_layers=4,
                                kernel_size=7,
                                mask=self.q_mask,
                                num_filters=d,
@@ -142,11 +143,11 @@ class Model(object):
                                dropout=self.dropout,
                                input_projection=True)
             a = residual_block(a_emb,
-                               num_blocks=4,
-                               num_conv_layers=0,
+                               num_blocks=1,
+                               num_conv_layers=4,
                                kernel_size=7,
                                mask=self.a_mask,
-                               causality=True,
+                               # causality=True,
                                num_filters=d,
                                num_heads=nh,
                                scope="Input_Encoder_Block",
@@ -191,8 +192,8 @@ class Model(object):
         with tf.variable_scope("Decoder"):
             dec, attention_weights = residual_block(a,
                                     memory=self.enc[1],
-                                    num_blocks=4,
-                                    num_conv_layers=0,
+                                    num_blocks=1,
+                                    num_conv_layers=4,
                                     kernel_size=7,
                                     mask=self.c_mask,
                                     num_filters=d,
@@ -201,22 +202,18 @@ class Model(object):
                                     bias=False,
                                     dropout=self.dropout,
                                     return_attention_weights=True)
-            self.dec1 = dec
             # generation word probs
             dec = conv(dec, dw, name="output_projection")
-            self.dec2 = dec
             # dec = tf.reduce_max(tf.reshape(conv(dec, 2 * dw, name="output_projection"), [-1, dw, 2]), 2)
             self.dec = tf.slice(tf.reshape(dec, [N, AL, dw]), [0, 0, 0], [N, AL - 1, dw])
             self.dec = tf.reshape(self.dec, [-1, dw])
-            self.dec3 = self.dec
-            # self.logits1 = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
-            # crossent = tf.reshape(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits1,
-            #             labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])), [N, AL - 1])
-            # weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
-            # self.loss1 = tf.reduce_mean(tf.reduce_sum(crossent * weight,
-            #                                          axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
-            self.logits = tf.reshape(tf.matmul(self.dec, self.word_mat,
-                                               transpose_b=True), [N, AL - 1, NV])
+            self.logits1 = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
+            crossent = tf.reshape(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits1,
+                        labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])), [N, AL - 1])
+            weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
+            self.loss1 = tf.reduce_mean(tf.reduce_sum(crossent * weight,
+                                                     axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
+            self.logits = tf.reshape(self.logits1, [N, AL - 1, NV])
             self.gen_probs = tf.nn.softmax(self.logits)
 
             # copy word probs
@@ -225,7 +222,7 @@ class Model(object):
             # index1 = tf.tile(tf.reshape(tf.range(N), [N, 1, 1]), [1, AL - 1, PL])
             # index2 = tf.tile(tf.reshape(tf.range(AL - 1), [1, AL - 1, 1]), [N, 1, PL])
             # index3 = tf.tile(tf.expand_dims(self.c, 1), [1, AL - 1, 1])
-            # indices_c =tf.stack((index1, index2, index3), axis=3)
+            # indices_c =tf.stack((i ndex1, index2, index3), axis=3)
             # self.copy_probs = tf.scatter_nd(indices_c, self.attention_weights, [N, AL - 1, NV])
 
             # combine copy and generation probs
@@ -237,8 +234,9 @@ class Model(object):
             index2 = tf.tile(tf.expand_dims(tf.range(AL - 1), 0), [N, 1])
             index3 = tf.slice(self.a, [0, 1], [N, AL - 1])
             indices_c = tf.stack((index1, index2, index3), axis=2)
+            self.index = indices_c
             self.gold_probs = tf.gather_nd(self.gen_probs, indices_c)
-            crossent = -tf.log(tf.clip_by_value(self.gold_probs, 2e-32, 1.0))
+            crossent = -tf.log(tf.clip_by_value(self.gold_probs, 1e-12, 1.0))
             weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
             self.loss = tf.reduce_mean(tf.reduce_sum(crossent * weight,
                                                      axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
