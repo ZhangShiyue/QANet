@@ -201,7 +201,6 @@ class Model(object):
                                     bias=False,
                                     dropout=self.dropout,
                                     return_attention_weights=True)
-
             self.dec1 = dec
             # generation word probs
             dec = conv(dec, dw, name="output_projection")
@@ -222,7 +221,7 @@ class Model(object):
 
             # copy word probs
             # self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
-            # self.attention_weights = tf.slice(tf.reduce_mean(attention_weights, 1), [0, 0, 0], [N, AL - 1, PL])
+            self.attention_weights = tf.slice(tf.reduce_mean(attention_weights, 1), [0, 0, 0], [N, AL - 1, PL])
             # index1 = tf.tile(tf.reshape(tf.range(N), [N, 1, 1]), [1, AL - 1, PL])
             # index2 = tf.tile(tf.reshape(tf.range(AL - 1), [1, AL - 1, 1]), [N, 1, PL])
             # index3 = tf.tile(tf.expand_dims(self.c, 1), [1, AL - 1, 1])

@@ -326,8 +326,7 @@ def dot_product_attention(q,
             mask = tf.cast(tf.reshape(mask, [-1, 1, 1, shapes[-1]]), tf.int32)
             mask = tf.tile(mask, [1, 1, shapes[-2], 1])
             if causality:
-                future_blind = tf.matrix_band_part(mask, -1, 0)
-                mask *= future_blind
+                mask = tf.matrix_band_part(mask, -1, 0)
             logits = mask_logits(logits, mask)
 
         weights = tf.nn.softmax(logits, name="attention_weights")
