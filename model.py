@@ -34,7 +34,6 @@ class Model(object):
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
-            # self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
             self.loop_function = None
             # self.loop_function = None if trainable or self.rerank else \
             #     self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c, self.cv)
@@ -203,31 +202,44 @@ class Model(object):
                                     dropout=self.dropout,
                                     return_attention_weights=True)
 
+            self.dec1 = dec
             # generation word probs
-            self.dec = tf.slice(conv(dec, dw, name="out_proj"), [0, 0, 0], [N, AL - 1, dw])
-            self.gen_probs = tf.reshape(tf.nn.softmax(tf.matmul(tf.reshape(self.dec, [-1, dw]),
-                                                                self.word_mat, transpose_b=True)), [N, AL - 1, NV])
+            dec = conv(dec, dw, name="output_projection")
+            self.dec2 = dec
+            # dec = tf.reduce_max(tf.reshape(conv(dec, 2 * dw, name="output_projection"), [-1, dw, 2]), 2)
+            self.dec = tf.slice(tf.reshape(dec, [N, AL, dw]), [0, 0, 0], [N, AL - 1, dw])
+            self.dec = tf.reshape(self.dec, [-1, dw])
+            self.dec3 = self.dec
+            # self.logits1 = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
+            # crossent = tf.reshape(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits1,
+            #             labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])), [N, AL - 1])
+            # weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
+            # self.loss1 = tf.reduce_mean(tf.reduce_sum(crossent * weight,
+            #                                          axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
+            self.logits = tf.reshape(tf.matmul(self.dec, self.word_mat,
+                                               transpose_b=True), [N, AL - 1, NV])
+            self.gen_probs = tf.nn.softmax(self.logits)
 
             # copy word probs
-            self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
-            self.attention_weights = tf.slice(tf.reduce_mean(attention_weights, 1), [0, 0, 0], [N, AL - 1, PL])
-            index1 = tf.tile(tf.reshape(tf.range(N), [N, 1, 1]), [1, AL - 1, PL])
-            index2 = tf.tile(tf.reshape(tf.range(AL - 1), [1, AL - 1, 1]), [N, 1, PL])
-            index3 = tf.tile(tf.expand_dims(self.c, 1), [1, AL - 1, 1])
-            indices_c =tf.stack((index1, index2, index3), axis=3)
-            self.copy_probs = tf.scatter_nd(indices_c, self.attention_weights, [N, AL - 1, NV])
+            # self.p_gen = tf.slice(conv(dec, 1, name="gen_prob"), [0, 0, 0], [N, AL - 1, 1])
+            # self.attention_weights = tf.slice(tf.reduce_mean(attention_weights, 1), [0, 0, 0], [N, AL - 1, PL])
+            # index1 = tf.tile(tf.reshape(tf.range(N), [N, 1, 1]), [1, AL - 1, PL])
+            # index2 = tf.tile(tf.reshape(tf.range(AL - 1), [1, AL - 1, 1]), [N, 1, PL])
+            # index3 = tf.tile(tf.expand_dims(self.c, 1), [1, AL - 1, 1])
+            # indices_c =tf.stack((index1, index2, index3), axis=3)
+            # self.copy_probs = tf.scatter_nd(indices_c, self.attention_weights, [N, AL - 1, NV])
 
             # combine copy and generation probs
-            self.probs = self.p_gen * self.gen_probs + (1 - self.p_gen) * self.copy_probs
-            self.preds = tf.to_int32(tf.argmax(self.probs, axis=-1))
-
+            # self.probs = self.p_gen * self.gen_probs + (1 - self.p_gen) * self.copy_probs
+            # self.probs = self.gen_probs
+            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.gen_probs, axis=-1)), [N, AL - 1])
             # loss
             index1 = tf.tile(tf.expand_dims(tf.range(N), 1), [1, AL - 1])
             index2 = tf.tile(tf.expand_dims(tf.range(AL - 1), 0), [N, 1])
             index3 = tf.slice(self.a, [0, 1], [N, AL - 1])
-            indices_c =tf.stack((index1, index2, index3), axis=2)
-            gold_probs = tf.gather_nd(self.probs, indices_c)
-            crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
+            indices_c = tf.stack((index1, index2, index3), axis=2)
+            self.gold_probs = tf.gather_nd(self.gen_probs, indices_c)
+            crossent = -tf.log(tf.clip_by_value(self.gold_probs, 2e-32, 1.0))
             weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
             self.loss = tf.reduce_mean(tf.reduce_sum(crossent * weight,
                                                      axis=1) / (tf.reduce_sum(weight, axis=1) + 1e-12))
