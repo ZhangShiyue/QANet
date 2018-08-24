@@ -178,7 +178,7 @@ class Model(object):
             #         self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
             self.enc.append(residual_block(self.enc[0],
                            num_blocks=4,
-                           num_conv_layers=2,
+                           num_conv_layers=0,
                            kernel_size=5,
                            mask=self.c_mask,
                            num_filters=d,

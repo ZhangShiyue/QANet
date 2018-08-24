@@ -11,7 +11,6 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from model import Model
-from demo import Demo
 from util import get_record_parser, convert_tokens, evaluate, get_batch_dataset, get_dataset
 from prepro import word_tokenize, save
 

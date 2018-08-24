@@ -240,8 +240,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
             for each in (word, word.lower(), word.capitalize(), word.upper()):
                 if each in word2idx_dict:
                     return word2idx_dict[each]
-            return len(word2idx_dict) + i
-            # return 1
+            # return len(word2idx_dict) + i
+            return 1
 
         def _get_char(char):
             if char in char2idx_dict:
