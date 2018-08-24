@@ -178,7 +178,7 @@ class Model(object):
             #         self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
             self.enc.append(residual_block(self.enc[0],
                            num_blocks=4,
-                           num_conv_layers=0,
+                           num_conv_layers=2,
                            kernel_size=5,
                            mask=self.c_mask,
                            num_filters=d,
@@ -205,8 +205,8 @@ class Model(object):
             # generation word probs
             dec = conv(dec, dw, name="output_projection")
             self.dec = tf.slice(dec, [0, 0, 0], [N, AL - 1, dw])
-            self.logits1 = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
-            crossent = tf.reshape(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits1,
+            self.logits = tf.matmul(tf.reshape(self.dec, [-1, dw]), self.word_mat, transpose_b=True)
+            crossent = tf.reshape(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=self.logits,
                         labels=tf.reshape(tf.slice(self.a, [0, 1], [N, AL - 1]), [-1])), [N, AL - 1])
             weight = tf.to_float(tf.slice(self.a_mask, [0, 1], [N, AL - 1]))
             self.loss = tf.reduce_mean(tf.reduce_sum(crossent * weight,
@@ -226,7 +226,7 @@ class Model(object):
             # combine copy and generation probs
             # self.probs = self.p_gen * self.gen_probs + (1 - self.p_gen) * self.copy_probs
             # self.probs = self.gen_probs
-            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.logits1, axis=-1)), [N, AL - 1])
+            self.preds = tf.reshape(tf.to_int32(tf.argmax(self.logits, axis=-1)), [N, AL - 1])
             # loss
             # index1 = tf.tile(tf.expand_dims(tf.range(N), 1), [1, AL - 1])
             # index2 = tf.tile(tf.expand_dims(tf.range(AL - 1), 0), [N, 1])

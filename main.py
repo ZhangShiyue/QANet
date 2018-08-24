@@ -112,14 +112,13 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, itera
             a[:, i] = preds[:, i - 1]
 
         for qid, symbols in zip(qa_id, a):
-            context = eval_file[str(qid)]["context"].replace(
-                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-            context_tokens = word_tokenize(context)
+            # context = eval_file[str(qid)]["context"].replace(
+            #                 "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+            # context_tokens = word_tokenize(context)
             symbols = list(symbols)
             if 3 in symbols:
                 symbols = symbols[:symbols.index(3)]
-            answer = u' '.join([id2word[symbol] if symbol in id2word
-                        else context_tokens[symbol - len(id2word)] for symbol in symbols[1:]])
+            answer = u' '.join([id2word[symbol] for symbol in symbols[1:]])
             # deal with special symbols like %, $ etc
             elim_pre_spas = [u' %', u" 's", u' ,']
             for s in elim_pre_spas:
