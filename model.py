@@ -153,7 +153,7 @@ class Model(object):
             #         self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
             self.enc.append(residual_block(self.enc[0],
                            num_blocks=4,
-                           num_conv_layers=2,
+                           num_conv_layers=0,
                            kernel_size=5,
                            mask=self.c_mask,
                            num_filters=d,
@@ -235,8 +235,8 @@ class Model(object):
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
-                # for k, symbol in enumerate(symbols):
-                #     symbols[k] = tf.gather(symbol, 0)
+                for k, symbol in enumerate(symbols):
+                    symbols[k] = tf.gather(symbol, 0)
                 for k, output in enumerate(outputs):
                     outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
                 for k, attn_w in enumerate(attn_ws):
@@ -287,24 +287,24 @@ class Model(object):
 
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens):
         batch_size = ouputs[0].get_shape()[0].value
-        PL = self.c.get_shape()[1].value
-        batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
-        indices_c = tf.stack((batch_nums_c, self.c), axis=2)
-        batch_nums = tf.expand_dims(tf.range(batch_size), 1)
+        # PL = self.c.get_shape()[1].value
+        # batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+        # indices_c = tf.stack((batch_nums_c, self.c), axis=2)
+        # batch_nums = tf.expand_dims(tf.range(batch_size), 1)
         weights = []
         crossents = []
         for output, oup, attn_w in zip(ouputs[:-1], oups[1:], attn_ws[:-1]):
             # combine copy and generation probs
-            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, self.num_voc])
+            # dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, self.num_voc])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            dist_g = tf.nn.softmax(logit)
-            final_dist = dist_g
+            # dist_g = tf.nn.softmax(logit)
+            # final_dist = dist_g
             # get loss
             # indices = tf.concat((batch_nums, oup), axis=1)
             # gold_probs = tf.gather_nd(final_dist, indices)
             # crossent = -tf.log(tf.clip_by_value(gold_probs,1e-10,1.0))
             target = tf.reshape(oup, [-1])
-            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=final_dist, labels=target)
+            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
             weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)
@@ -328,12 +328,12 @@ class Model(object):
             # prev = tf.matmul(prev, embedding, transpose_b=True)
             # prev = prev * tf.to_float(cv)
             # prev = tf.log(tf.nn.softmax(prev))
-            batch_size = prev.get_shape()[0].value
-            PL = c.get_shape()[1].value
-            bc = tf.tile(c, [batch_size, 1])
-            batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
-            indices_c = tf.stack((batch_nums_c, bc), axis=2)
-            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
+            # batch_size = prev.get_shape()[0].value
+            # PL = c.get_shape()[1].value
+            # bc = tf.tile(c, [batch_size, 1])
+            # batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+            # indices_c = tf.stack((batch_nums_c, bc), axis=2)
+            # dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
             logit = tf.matmul(prev, embedding, transpose_b=True)
             dist_g = tf.nn.softmax(logit)
             final_dist = dist_g
