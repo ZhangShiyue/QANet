@@ -28,10 +28,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_gen"
-log_dir = os.path.join(dir_name, "gen_event_speaker")
-save_dir = os.path.join(dir_name, "gen_model_speaker")
-answer_dir = os.path.join(dir_name, "gen_answer_speaker")
+target_dir = "data_gen_que"
+log_dir = os.path.join(dir_name, "gen_event_listener")
+save_dir = os.path.join(dir_name, "gen_model_listener")
+answer_dir = os.path.join(dir_name, "gen_answer_listener")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -92,10 +92,10 @@ flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 200, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
-flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
-flags.DEFINE_integer("ans_limit", 33, "Limit length for answers")
+flags.DEFINE_integer("ques_limit", 52, "Limit length for question")
+flags.DEFINE_integer("ans_limit", 31, "Limit length for answers")
 flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
-flags.DEFINE_integer("test_ques_limit", 50, "Limit length for question in test file")
+flags.DEFINE_integer("test_ques_limit", 52, "Limit length for question in test file")
 flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
 flags.DEFINE_integer("word_count_limit", -1, "Min count for word")
@@ -130,7 +130,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 def main(_):
     config = flags.FLAGS

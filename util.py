@@ -103,7 +103,7 @@ def evaluate(eval_file, answer_dict):
     f1 = exact_match = total = 0
     for key, value in answer_dict.items():
         total += 1
-        ground_truths = eval_file[key]["answers"]
+        ground_truths = eval_file[key]["questions"]
         prediction = value
         exact_match += metric_max_over_ground_truths(
             exact_match_score, prediction, ground_truths)
