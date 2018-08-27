@@ -299,8 +299,12 @@ def tmp(config):
     with open("{}.json".format(config.answer_file), "r") as fh:
         answer = json.load(fh)
 
+    answers = []
+    groundtruths = []
     for key in answer:
-        with open("{}_generated".format(config.answer_file), 'a') as f:
-            f.write(answer[key].encode('utf-8') + '\n')
-        with open("{}_groundtruth".format(config.answer_file), 'a') as f:
-            f.write(eval_file[key]["questions"][0].encode('utf-8') + '\n')
+        answers.append(answer[key].encode('utf-8'))
+        groundtruths.append(eval_file[key]["questions"][0].encode('utf-8'))
+    with open("{}_generated".format(config.answer_file), 'w') as f:
+        f.write('\n'.join(answers))
+    with open("{}_groundtruth".format(config.answer_file), 'w') as f:
+        f.write('\n'.join(groundtruths))
