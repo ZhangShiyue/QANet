@@ -192,10 +192,14 @@ def test(config):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
                 symbols = sess.run(model.symbols, feed_dict={model.c: c, model.q: q, model.a: a,
                          model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2, model.qa_id: qa_id})
+                context = eval_file[str(qa_id[0])]["context"].replace(
+                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                context_tokens = word_tokenize(context)
                 symbols = list(symbols)
                 if 3 in symbols:
                     symbols = symbols[:symbols.index(3)]
-                answer = u' '.join([id2word[symbol] for symbol in symbols])
+                answer = u' '.join([id2word[symbol] if symbol in id2word
+                                    else context_tokens[symbol - len(id2word)] for symbol in symbols])
                 # deal with special symbols like %, $ etc
                 elim_pre_spas = [u' %', u" 's", u' ,']
                 for s in elim_pre_spas:

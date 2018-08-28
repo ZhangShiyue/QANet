@@ -33,12 +33,12 @@ class Model(object):
             self.qa_id = tf.placeholder(tf.int32, [self.batch_size], "qa_id")
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
-            self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
+            original_word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
                                             trainable=False)
-            # additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
-            #                               [config.para_limit if trainable else config.test_para_limit, 1])
-            # self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
-            self.num_voc = len(word_mat)
+            additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
+                                          [config.para_limit if trainable else config.test_para_limit, 1])
+            self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
+            self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
 
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
@@ -159,7 +159,7 @@ class Model(object):
 
             inputs = tf.concat(attention_outputs, axis=-1)
             self.enc = [conv(inputs, d, name="input_projection")]
-            for i in range(3):
+            for i in range(1):
                 if i % 2 == 0:  # dropout every 2 blocks
                     self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
                 self.enc.append(residual_block(self.enc[i],
@@ -176,7 +176,8 @@ class Model(object):
                                                dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
-            memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
+            # memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
+            memory = self.enc[1]
             oups = tf.split(self.q, [1] * self.q_maxlen, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
@@ -203,8 +204,8 @@ class Model(object):
                             outputs[j] = tf.gather(output, index)  # update prev outputs
                         for j, attn_w in enumerate(attn_ws):
                             attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
-                        # for j, p_gen in enumerate(p_gens):
-                        #     p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
+                        for j, p_gen in enumerate(p_gens):
+                            p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
                 attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=d, num_heads=1, memory=memory,
@@ -221,8 +222,8 @@ class Model(object):
 
                 with tf.variable_scope("AttnOutputProjection"):
                     # generation prob
-                    # p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
-                    # p_gens.append(p_gen)
+                    p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
+                    p_gens.append(p_gen)
                     # generation
                     output = _linear([h] + [cinp], output_size=dw * 2, bias=False, scope="output")
                     output = tf.reshape(output, [-1, dw, 2])
@@ -241,8 +242,8 @@ class Model(object):
                     outputs[j] = tf.gather(output, index)  # update prev outputs
                 for j, attn_w in enumerate(attn_ws):
                     attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
-                # for j, p_gen in enumerate(p_gens):
-                #     p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
+                for j, p_gen in enumerate(p_gens):
+                    p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
@@ -252,8 +253,8 @@ class Model(object):
                     outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
                 for k, attn_w in enumerate(attn_ws):
                     attn_ws[k] = tf.expand_dims(tf.gather(attn_w, 0), 0)
-                # for k, p_gen in enumerate(p_gens):
-                #     p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
+                for k, p_gen in enumerate(p_gens):
+                    p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
 
             self.batch_loss, self.loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
             self.symbols = symbols
@@ -319,24 +320,26 @@ class Model(object):
 
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens):
         batch_size = ouputs[0].get_shape()[0].value
-        # PL = self.c.get_shape()[1].value
-        # batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
-        # indices_c = tf.stack((batch_nums_c, self.c), axis=2)
-        # batch_nums = tf.expand_dims(tf.range(batch_size), 1)
+        PL = self.c.get_shape()[1].value
+        batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+        indices_c = tf.stack((batch_nums_c, self.c), axis=2)
+        batch_nums = tf.expand_dims(tf.range(batch_size), 1)
         weights = []
         crossents = []
-        for output, oup, attn_w in zip(ouputs[:-1], oups[1:], attn_ws[:-1]):
+        for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
-            # dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, self.num_voc])
+            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, self.num_voc])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            # dist_g = tf.nn.softmax(logit)
-            # final_dist = dist_g
+            dist_g = tf.nn.softmax(logit)
+            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
             # get loss
-            # indices = tf.concat((batch_nums, oup), axis=1)
-            # gold_probs = tf.gather_nd(final_dist, indices)
-            # crossent = -tf.log(tf.clip_by_value(gold_probs,1e-10,1.0))
+            indices = tf.concat((batch_nums, oup), axis=1)
+            gold_probs = tf.gather_nd(final_dist, indices)
+            # crossent1 = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
             target = tf.reshape(oup, [-1])
-            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
+            # crossent0 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
+            crossent = tf.cond(self.global_step < 10000, lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
+                              lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
             weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)
@@ -357,18 +360,18 @@ class Model(object):
         """
 
         def loop_function(prev, attn_w, p_gen, prev_probs, _):
-            # prev = tf.matmul(prev, embedding, transpose_b=True)
+            prev = tf.matmul(prev, embedding, transpose_b=True)
             # prev = prev * tf.to_float(cv)
-            # prev = tf.log(tf.nn.softmax(prev))
-            # batch_size = prev.get_shape()[0].value
-            # PL = c.get_shape()[1].value
-            # bc = tf.tile(c, [batch_size, 1])
-            # batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
-            # indices_c = tf.stack((batch_nums_c, bc), axis=2)
-            # dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
+            prev = tf.log(tf.nn.softmax(prev))
+            batch_size = prev.get_shape()[0].value
+            PL = c.get_shape()[1].value
+            bc = tf.tile(c, [batch_size, 1])
+            batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+            indices_c = tf.stack((batch_nums_c, bc), axis=2)
+            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
             logit = tf.matmul(prev, embedding, transpose_b=True)
             dist_g = tf.nn.softmax(logit)
-            final_dist = dist_g
+            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
 
             # beam search
             prev = tf.nn.bias_add(tf.transpose(final_dist), prev_probs)  # num_symbols*BEAM_SIZE
