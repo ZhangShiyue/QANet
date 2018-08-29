@@ -11,7 +11,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from model import Model
-from util import get_record_parser, convert_tokens, evaluate, get_batch_dataset, get_dataset
+from util import get_record_parser, convert_tokens, evaluate, evaluate_bleu, get_batch_dataset, get_dataset
 from prepro import word_tokenize, save
 
 
@@ -303,12 +303,8 @@ def tmp(config):
     with open("{}.json".format(config.answer_file), "r") as fh:
         answer = json.load(fh)
 
-    answers = []
-    groundtruths = []
-    for key in answer:
-        answers.append(answer[key].encode('utf-8'))
-        groundtruths.append(eval_file[key]["questions"][0].encode('utf-8'))
+    groundtruths, answers = evaluate_bleu(eval_file, answer)
     with open("{}_generated".format(config.answer_file), 'w') as f:
-        f.write('\n'.join(answers))
+        f.write('\n'.join([' '.join(answer) for answer in answers]).encode('utf-8'))
     with open("{}_groundtruth".format(config.answer_file), 'w') as f:
-        f.write('\n'.join(groundtruths))
+        f.write('\n'.join([' '.join(answer) for answer in groundtruths]).encode('utf-8'))

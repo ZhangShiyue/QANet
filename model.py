@@ -360,9 +360,6 @@ class Model(object):
         """
 
         def loop_function(prev, attn_w, p_gen, prev_probs, _):
-            prev = tf.matmul(prev, embedding, transpose_b=True)
-            # prev = prev * tf.to_float(cv)
-            prev = tf.log(tf.nn.softmax(prev))
             batch_size = prev.get_shape()[0].value
             PL = c.get_shape()[1].value
             bc = tf.tile(c, [batch_size, 1])

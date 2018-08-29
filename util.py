@@ -2,6 +2,7 @@ import tensorflow as tf
 import re
 from collections import Counter
 import string
+import math
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -31,39 +32,40 @@ def get_record_parser(config, voc_size, is_test=False):
                                            })
 
         context_idxs = tf.reshape(tf.decode_raw(
-            features["context_idxs"], tf.int32), [para_limit])
+                features["context_idxs"], tf.int32), [para_limit])
         # context_voc = tf.reshape(tf.decode_raw(
         #     features["context_voc"], tf.int32), [voc_size])
         ques_idxs = tf.reshape(tf.decode_raw(
-            features["ques_idxs"], tf.int32), [ques_limit])
+                features["ques_idxs"], tf.int32), [ques_limit])
         ans_idxs = tf.reshape(tf.decode_raw(
-            features["ans_idxs"], tf.int32), [ans_limit])
+                features["ans_idxs"], tf.int32), [ans_limit])
         context_char_idxs = tf.reshape(tf.decode_raw(
-            features["context_char_idxs"], tf.int32), [para_limit, char_limit])
+                features["context_char_idxs"], tf.int32), [para_limit, char_limit])
         ques_char_idxs = tf.reshape(tf.decode_raw(
-            features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
+                features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
         ans_char_idxs = tf.reshape(tf.decode_raw(
-            features["ans_char_idxs"], tf.int32), [ans_limit, char_limit])
+                features["ans_char_idxs"], tf.int32), [ans_limit, char_limit])
         y1 = tf.reshape(tf.decode_raw(
-            features["y1"], tf.float32), [para_limit])
+                features["y1"], tf.float32), [para_limit])
         y2 = tf.reshape(tf.decode_raw(
-            features["y2"], tf.float32), [para_limit])
+                features["y2"], tf.float32), [para_limit])
         qa_id = features["id"]
 
         return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, ans_char_idxs, y1, y2, qa_id
+
     return parse
 
 
 def get_batch_dataset(record_file, parser, config):
     num_threads = tf.constant(config.num_threads, dtype=tf.int32)
     dataset = tf.data.TFRecordDataset(record_file).map(
-        parser, num_parallel_calls=num_threads).shuffle(config.capacity).repeat()
+            parser, num_parallel_calls=num_threads).shuffle(config.capacity).repeat()
     if config.is_bucket:
         buckets = [tf.constant(num) for num in range(*config.bucket_range)]
 
         def key_func(context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, y1, y2, qa_id):
             c_len = tf.reduce_sum(
-                tf.cast(tf.cast(context_idxs, tf.bool), tf.int32))
+                    tf.cast(tf.cast(context_idxs, tf.bool), tf.int32))
             t = tf.clip_by_value(buckets, 0, c_len)
             return tf.argmax(t)
 
@@ -71,7 +73,7 @@ def get_batch_dataset(record_file, parser, config):
             return elements.batch(config.batch_size)
 
         dataset = dataset.apply(tf.contrib.data.group_by_window(
-            key_func, reduce_func, window_size=5 * config.batch_size)).shuffle(len(buckets) * 25)
+                key_func, reduce_func, window_size=5 * config.batch_size)).shuffle(len(buckets) * 25)
     else:
         dataset = dataset.batch(config.batch_size)
     return dataset
@@ -81,7 +83,7 @@ def get_dataset(record_file, parser, config, is_test=False):
     num_threads = tf.constant(config.num_threads, dtype=tf.int32)
     batch_size = config.test_batch_size if is_test else config.batch_size
     dataset = tf.data.TFRecordDataset(record_file).map(
-        parser, num_parallel_calls=num_threads).repeat().batch(batch_size)
+            parser, num_parallel_calls=num_threads).repeat().batch(batch_size)
     return dataset
 
 
@@ -106,7 +108,7 @@ def evaluate(eval_file, answer_dict):
         ground_truths = eval_file[key]["questions"]
         prediction = value
         exact_match += metric_max_over_ground_truths(
-            exact_match_score, prediction, ground_truths)
+                exact_match_score, prediction, ground_truths)
         f1 += metric_max_over_ground_truths(f1_score,
                                             prediction, ground_truths)
     exact_match = 100.0 * exact_match / total
@@ -115,7 +117,6 @@ def evaluate(eval_file, answer_dict):
 
 
 def normalize_answer(s):
-
     def remove_articles(text):
         return re.sub(r'\b(a|an|the)\b', ' ', text)
 
@@ -155,3 +156,99 @@ def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
         score = metric_fn(prediction, ground_truth)
         scores_for_ground_truths.append(score)
     return max(scores_for_ground_truths)
+
+
+def _get_ngrams(segment, max_order):
+    """Extracts all n-grams upto a given maximum order from an input segment.
+    Args:
+      segment: text segment from which n-grams will be extracted.
+      max_order: maximum length in tokens of the n-grams returned by this
+          methods.
+    Returns:
+      The Counter containing all n-grams upto max_order in segment
+      with a count of how many times each n-gram occurred.
+    """
+    ngram_counts = Counter()
+    for order in range(1, max_order + 1):
+        for i in range(0, len(segment) - order + 1):
+            ngram = tuple(segment[i:i + order])
+            ngram_counts[ngram] += 1
+    return ngram_counts
+
+
+def compute_bleu(reference_corpus, translation_corpus, max_order=4,
+                 smooth=False):
+    """Computes BLEU score of translated segments against one or more references.
+    Args:
+      reference_corpus: list of lists of references for each translation. Each
+          reference should be tokenized into a list of tokens.
+      translation_corpus: list of translations to score. Each translation
+          should be tokenized into a list of tokens.
+      max_order: Maximum n-gram order to use when computing BLEU score.
+      smooth: Whether or not to apply Lin et al. 2004 smoothing.
+    Returns:
+      3-Tuple with the BLEU score, n-gram precisions, geometric mean of n-gram
+      precisions and brevity penalty.
+    """
+    matches_by_order = [0] * max_order
+    possible_matches_by_order = [0] * max_order
+    reference_length = 0
+    translation_length = 0
+    for (references, translation) in zip(reference_corpus,
+                                         translation_corpus):
+        reference_length += min(len(r) for r in references)
+        translation_length += len(translation)
+
+        merged_ref_ngram_counts = Counter()
+        for reference in references:
+            merged_ref_ngram_counts |= _get_ngrams(reference, max_order)
+        translation_ngram_counts = _get_ngrams(translation, max_order)
+        overlap = translation_ngram_counts & merged_ref_ngram_counts
+        for ngram in overlap:
+            matches_by_order[len(ngram) - 1] += overlap[ngram]
+        for order in range(1, max_order + 1):
+            possible_matches = len(translation) - order + 1
+            if possible_matches > 0:
+                possible_matches_by_order[order - 1] += possible_matches
+
+    precisions = [0] * max_order
+    for i in range(0, max_order):
+        if smooth:
+            precisions[i] = ((matches_by_order[i] + 1.) /
+                             (possible_matches_by_order[i] + 1.))
+        else:
+            if possible_matches_by_order[i] > 0:
+                precisions[i] = (float(matches_by_order[i]) /
+                                 possible_matches_by_order[i])
+            else:
+                precisions[i] = 0.0
+
+    if min(precisions) > 0:
+        p_log_sum = sum((1. / max_order) * math.log(p) for p in precisions)
+        geo_mean = math.exp(p_log_sum)
+    else:
+        geo_mean = 0
+
+    ratio = float(translation_length) / reference_length
+
+    if ratio > 1.0:
+        bp = 1.
+    else:
+        bp = math.exp(1 - 1. / ratio)
+
+    bleu = geo_mean * bp
+
+    return (bleu, precisions, bp, ratio, translation_length, reference_length)
+
+
+def evaluate_bleu(eval_file, answer_dict):
+    reference_corpus = []
+    translation_corpus = []
+    for key, value in answer_dict.items():
+        ground_truth = eval_file[key]["questions"][0]
+        prediction = value
+        prediction_tokens = normalize_answer(prediction).split()
+        ground_truth_tokens = normalize_answer(ground_truth).split()
+        translation_corpus.append(prediction_tokens)
+        reference_corpus.append(ground_truth_tokens)
+    return reference_corpus, translation_corpus
