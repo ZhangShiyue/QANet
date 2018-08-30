@@ -13,32 +13,35 @@ class Model(object):
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            self.c = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit],
+            self.c = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
                                     "context")
-            self.q = tf.placeholder(tf.int32, [None, config.ques_limit if trainable else config.test_ques_limit],
+            self.q = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit],
                                     "question")
-            self.a = tf.placeholder(tf.int32, [None, config.ans_limit if trainable else config.test_ans_limit],
+            self.a = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit],
                                     "answer")
-            self.ch = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit,
+            self.ch = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit,
                                                 config.char_limit], "context_char")
-            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit if trainable else config.test_ques_limit,
+            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit,
                                                 config.char_limit], "question_char")
-            self.ah = tf.placeholder(tf.int32, [None, config.ans_limit if trainable else config.test_ans_limit,
+            self.ah = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit,
                                                 config.char_limit], "answer_char")
-            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit],
+            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
                                      "answer_index1")
-            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable else config.test_para_limit],
+            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
                                      "answer_index2")
-            self.batch_size = config.batch_size if trainable else config.test_batch_size
+            self.batch_size = config.batch_size if trainable and (not rerank) else config.test_batch_size
             self.qa_id = tf.placeholder(tf.int32, [self.batch_size], "qa_id")
+
+            if rerank:
+                self.can_id = tf.placeholder(tf.int32, [self.batch_size], "can_id")
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
             original_word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
                                             trainable=False)
             additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
-                                          [config.para_limit if trainable else config.test_para_limit, 1])
+                                          [config.para_limit if trainable and (not rerank) else config.test_para_limit, 1])
             self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
-            self.num_voc = len(word_mat) + (config.para_limit if trainable else config.test_para_limit)
+            self.num_voc = len(word_mat) + (config.para_limit if trainable and (not rerank) else config.test_para_limit)
 
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
@@ -46,8 +49,6 @@ class Model(object):
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
             self.loop_function = None if trainable or self.rerank \
                 else self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c)
-            self.pred_loop_function = None if trainable \
-                else self._pred_beam_search(config.beam_size)
 
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
@@ -56,7 +57,7 @@ class Model(object):
             self.q_len = tf.reduce_sum(tf.cast(self.q_mask, tf.int32), axis=1)
             self.a_len = tf.reduce_sum(tf.cast(self.a_mask, tf.int32), axis=1)
 
-            if trainable:
+            if trainable and (not rerank):
                 self.c_maxlen, self.q_maxlen, self.a_maxlen = config.para_limit, config.ques_limit, config.ans_limit
             else:
                 self.c_maxlen, self.q_maxlen, self.a_maxlen = config.test_para_limit, config.test_ques_limit, config.test_ans_limit

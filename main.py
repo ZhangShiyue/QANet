@@ -103,7 +103,8 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, itera
     for _ in tqdm(range(1, num_batches + 1)):
         c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
         symbols = sess.run(model.symbols, feed_dict={model.c: c, model.q: q, model.a: a,
-                 model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2})
+                                                     model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
+                                                     model.y2: y2})
         symbols = list(symbols)
         if 3 in symbols:
             symbols = symbols[:symbols.index(3)]
@@ -191,9 +192,10 @@ def test(config):
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
                 symbols = sess.run(model.symbols, feed_dict={model.c: c, model.q: q, model.a: a,
-                         model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2, model.qa_id: qa_id})
+                                                             model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
+                                                             model.y2: y2, model.qa_id: qa_id})
                 context = eval_file[str(qa_id[0])]["context"].replace(
-                            "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 context_tokens = word_tokenize(context)
                 symbols = list(symbols)
                 if 3 in symbols:
@@ -245,24 +247,19 @@ def test_rerank(config):
         word_mat = np.array(json.load(fh), dtype=np.float32)
     with open(config.char_emb_file, "r") as fh:
         char_mat = np.array(json.load(fh), dtype=np.float32)
-    with open(config.test_eval_file, "r") as fh:
-        eval_file = json.load(fh)
-    with open(config.test_meta, "r") as fh:
+    with open(config.rerank_meta, "r") as fh:
         meta = json.load(fh)
-    with open("{}{}.json".format(config.res_d_b_file, config.beam_size), "r") as fh:
-        d_answer_dict = json.load(fh)
 
     total = meta["total"]
 
     graph = tf.Graph()
     print("Loading model...")
     with graph.as_default() as g:
-        test_batch = get_dataset("{}{}.{}".format(config.rerank_file.split('.')[0], config.beam_size,
-                                                  config.rerank_file.split('.')[1]), get_record_parser(
+        test_batch = get_dataset(config.rerank_file, get_record_parser(
                 config, len(word_mat) + config.test_para_limit, is_test=True, is_rerank=True),
                                  config, is_test=True).make_one_shot_iterator()
-
-        model = Model(config, test_batch, word_mat, char_mat, trainable=False, rerank=True, graph=g)
+        test_next_element = test_batch.get_next()
+        model = Model(config, word_mat, char_mat, trainable=True, rerank=True, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -275,26 +272,14 @@ def test_rerank(config):
                 sess.run(model.assign_vars)
             scores = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
-                qa_id, can_id, loss = sess.run(
-                        [model.qa_id, model.can_id, model.batch_loss])
-                for qid, cid, l in zip(qa_id, can_id, loss):
-                    if qid not in scores:
-                        scores[qid] = []
-                    scores[qid].append((cid, l))
-            reranked = {qid: sorted(scores[qid], key=lambda x: x[1])[0][0] for qid in scores}
-            # for qid in reranked:
-            #     if d_answer_dict[str(qid)][0] in eval_file[str(qid)]["answers"] and \
-            #                     d_answer_dict[str(qid)][reranked[qid][0][0]] not in eval_file[str(qid)]["answers"]:
-            #         for cid, l in reranked[qid]:
-            #             print d_answer_dict[str(qid)][cid].encode('utf-8'), l
-            #         print "groundtruth: {}".format(eval_file[str(qid)]["answers"])
-            #         print
-            answer_dict = {str(qid): d_answer_dict[str(qid)][reranked[qid]] for qid in reranked}
-            metrics = evaluate(eval_file, answer_dict)
-            # with open(config.answer_file, "w") as fh:
-            #     json.dump(answer_dict, fh)
-            print("Exact Match: {}, F1: {}".format(
-                    metrics['exact_match'], metrics['f1']))
+                c, q, a, ch, qh, ah, y1, y2, qa_id, can_id = sess.run(test_next_element)
+                batch_loss = sess.run(model.batch_loss, feed_dict={model.c: c, model.q: q, model.a: a, model.ch: ch,
+                                                       model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2,
+                                                       model.qa_id: qa_id, model.can_id: can_id})
+                for qid, cid, l in zip(qa_id, can_id, batch_loss):
+                    scores[(qid, cid)] = l
+            with open(config.listener_score_file, "w") as fh:
+                json.dump(scores, fh)
 
 
 def tmp(config):

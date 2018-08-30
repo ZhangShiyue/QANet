@@ -6,7 +6,7 @@ This file is taken and modified from R-Net by HKUST-KnowComp
 https://github.com/HKUST-KnowComp/R-Net
 '''
 
-from prepro import prepro, rerank_prepro
+from prepro import prepro, prepro_rerank
 from main import train, test, test_beam, test_rerank, tmp
 
 flags = tf.flags
@@ -17,9 +17,6 @@ train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "data", "glove", "glove.840B.300d.txt")
-
-res_d_b_file = os.path.join(home, "beam_search_res", "res_d_b")
-res_g_b_file = os.path.join(home, "beam_search_res", "res_g_b")
 
 train_dir = "train"
 model_name = "FRC"
@@ -46,8 +43,10 @@ word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer")
 
-rerank_file = os.path.join(target_dir, "rerank_test.tfrecords")
-
+rerank_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5.tfrecords")
+beam_search_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5.json")
+listener_score_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5_listener.json")
+rerank_meta = os.path.join(dir_name, "gen_answer_speaker1/answer_b5_meta.json")
 
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
@@ -82,9 +81,9 @@ flags.DEFINE_string("answer_file", answer_file, "Out file for answer")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
-flags.DEFINE_string("res_d_b_file", res_d_b_file, "Beam search results of prediction model")
-flags.DEFINE_string("res_g_b_file", res_g_b_file, "Beam search results of generation model")
 flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answers")
+flags.DEFINE_string("beam_search_file", beam_search_file, "Test data with candidate answers")
+flags.DEFINE_string("rerank_meta", rerank_meta, "Test data with candidate answers")
 
 flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
@@ -136,8 +135,8 @@ def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
-    elif config.mode == "rerank_prepro":
-        rerank_prepro(config)
+    elif config.mode == "prepro_rerank":
+        prepro_rerank(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "debug":

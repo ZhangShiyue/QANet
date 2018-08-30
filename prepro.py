@@ -344,14 +344,14 @@ def prepro(config):
     save(config.char_dictionary, char2idx_dict, message="char dictionary")
 
 
-def rerank_prepro(config):
+def prepro_rerank(config):
     para_limit = config.test_para_limit
     ques_limit = config.test_ques_limit
     ans_limit = config.test_ans_limit
     char_limit = config.char_limit
 
-    with open("{}{}.json".format(config.res_d_b_file, config.beam_size), "r") as fh:
-        d_answer_dict = json.load(fh)
+    with open(config.beam_search_file, "r") as fh:
+        answer_dict = json.load(fh)
     with open(config.word_dictionary, "r") as fh:
         word2idx_dict = json.load(fh)
     with open(config.char_dictionary, "r") as fh:
@@ -361,15 +361,18 @@ def rerank_prepro(config):
     test_examples, test_eval = process_file(
          config.test_file, "test", word_counter, char_counter)
 
-    writer = tf.python_io.TFRecordWriter("{}{}.{}".format(config.rerank_file.split('.')[0], config.beam_size,
-                                                          config.rerank_file.split('.')[1]))
+    writer = tf.python_io.TFRecordWriter(config.rerank_file)
+
+    total = 0
     for test_example in test_examples:
-        candidate_answers = d_answer_dict[str(test_example["id"])]
+        candidate_answers = answer_dict[str(test_example["id"])]
+        print len(candidate_answers)
+        exit()
         candidate_answer_tokens = []
-        for candidate_answer in candidate_answers:
-            tokens = ["--GO--"] + word_tokenize(candidate_answer) + ["--EOS--"]
-            if len(tokens) <= ans_limit:
-                candidate_answer_tokens.append(tokens)
+        candidate_answer_chars = []
+        for candidate_answer, _, _, _ in candidate_answers:
+            candidate_answer_tokens.append(word_tokenize(candidate_answer))
+            candidate_answer_chars.append([list(token) for token in candidate_answer_tokens[-1]])
 
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
@@ -377,6 +380,7 @@ def rerank_prepro(config):
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ans_idxs = [np.zeros([ans_limit], dtype=np.int32) for _ in range(len(candidate_answers))]
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
+        ans_char_idxs = [np.zeros([ans_limit, char_limit], dtype=np.int32) for _ in range(len(candidate_answers))]
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
 
@@ -404,6 +408,13 @@ def rerank_prepro(config):
             for i, token in enumerate(candidate_answer_token):
                 ans_idxs[k][i] = _get_word(token, i)
 
+        for k, candidate_answer_char in enumerate(candidate_answer_chars):
+            for i, token in enumerate(candidate_answer_char):
+                for j, char in enumerate(token):
+                    if j == char_limit:
+                        break
+                    ans_char_idxs[k][i, j] = _get_char(char)
+
         for i, token in enumerate(test_example["context_chars"]):
             for j, char in enumerate(token):
                 if j == char_limit:
@@ -419,7 +430,8 @@ def rerank_prepro(config):
         start, end = test_example["y1s"][-1], test_example["y2s"][-1]
         y1[start], y2[end] = 1.0, 1.0
 
-        for i, ans_idx in enumerate(ans_idxs):
+        for i, (ans_idx, ans_char_idx) in enumerate(zip(ans_idxs, ans_char_idxs)):
+            total += 1
             record = tf.train.Example(features=tf.train.Features(feature={
                 "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
                 "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
@@ -427,6 +439,7 @@ def rerank_prepro(config):
                 "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idx.tostring()])),
                 "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
                 "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
+                "ans_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_char_idx.tostring()])),
                 "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
                 "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
                 "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[test_example["id"]])),
@@ -434,3 +447,7 @@ def rerank_prepro(config):
             }))
             writer.write(record.SerializeToString())
     writer.close()
+    meta = {}
+    print total
+    meta["total"] = total
+    save(config.rerank_meta, meta, message="test meta")
