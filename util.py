@@ -120,11 +120,11 @@ def convert_tokens(eval_file, qa_id, pp1, pp2):
     return answer_dict, remapped_dict
 
 
-def evaluate(eval_file, answer_dict):
+def evaluate(eval_file, answer_dict, is_answer=False):
     f1 = exact_match = total = 0
     for key, value in answer_dict.items():
         total += 1
-        ground_truths = eval_file[key]["questions"]
+        ground_truths = eval_file[key]["questions"] if not is_answer else eval_file[key]["answers"]
         prediction = value
         exact_match += metric_max_over_ground_truths(
                 exact_match_score, prediction, ground_truths)

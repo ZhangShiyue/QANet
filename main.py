@@ -277,12 +277,12 @@ def test_rerank(config):
                                                        model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2,
                                                        model.qa_id: qa_id, model.can_id: can_id})
                 for qid, cid, l in zip(qa_id, can_id, batch_loss):
-                    scores[(qid, cid)] = l
+                    scores[(str(qid), str(cid))] = str(l)
             with open(config.listener_score_file, "w") as fh:
                 json.dump(scores, fh)
 
 
-def tmp(config):
+def test_bleu(config):
     with open(config.test_eval_file, "r") as fh:
         eval_file = json.load(fh)
     with open("{}.json".format(config.answer_file), "r") as fh:
@@ -293,3 +293,25 @@ def tmp(config):
         f.write('\n'.join([' '.join(answer) for answer in answers]).encode('utf-8'))
     with open("{}_groundtruth".format(config.answer_file), 'w') as f:
         f.write('\n'.join([' '.join(answer) for answer in groundtruths]).encode('utf-8'))
+
+
+def test_reranked(config):
+    with open(config.test_eval_file, "r") as fh:
+        eval_file = json.load(fh)
+    with open(config.listener_score_file, "r") as fh:
+        listener_score_file = json.load(fh)
+    with open(config.beam_search_file, "r") as fh:
+        beam_search_file = json.load(fh)
+
+    answer_dict = {}
+    for qid in beam_search_file:
+        if qid not in answer_dict:
+            answer_dict[qid] = []
+        for cid, (ans, _, _, prob) in enumerate(beam_search_file[qid]):
+            score = float(prob) + 1.3 * float(listener_score_file[str((str(int(qid)), str(cid)))])
+            answer_dict[qid].append((ans, score))
+    answer_dict = {qid: sorted(answer_dict[qid], key=lambda x: x[1])[0][0] for qid in answer_dict}
+
+    metrics = evaluate(eval_file, answer_dict, is_answer=True)
+    print("Exact Match: {}, F1: {}".format(
+            metrics['exact_match'], metrics['f1']))

@@ -366,8 +366,6 @@ def prepro_rerank(config):
     total = 0
     for test_example in test_examples:
         candidate_answers = answer_dict[str(test_example["id"])]
-        print len(candidate_answers)
-        exit()
         candidate_answer_tokens = []
         candidate_answer_chars = []
         for candidate_answer, _, _, _ in candidate_answers:
@@ -376,7 +374,7 @@ def prepro_rerank(config):
 
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
-        context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
+        # context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ans_idxs = [np.zeros([ans_limit], dtype=np.int32) for _ in range(len(candidate_answers))]
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
@@ -398,8 +396,8 @@ def prepro_rerank(config):
         for i, token in enumerate(test_example["context_tokens"]):
             wid = _get_word(token, i)
             context_idxs[i] = wid
-            if wid < len(word2idx_dict):
-                context_voc[wid] = 1
+            # if wid < len(word2idx_dict):
+            #     context_voc[wid] = 1
 
         for i, token in enumerate(test_example["ques_tokens"]):
             ques_idxs[i] = _get_word(token, i)
@@ -434,7 +432,7 @@ def prepro_rerank(config):
             total += 1
             record = tf.train.Example(features=tf.train.Features(feature={
                 "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
-                "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
+                # "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
                 "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
                 "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idx.tostring()])),
                 "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),

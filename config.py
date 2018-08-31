@@ -84,6 +84,7 @@ flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answers")
 flags.DEFINE_string("beam_search_file", beam_search_file, "Test data with candidate answers")
 flags.DEFINE_string("rerank_meta", rerank_meta, "Test data with candidate answers")
+flags.DEFINE_string("listener_score_file", listener_score_file, "Test data with candidate answers")
 
 flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
