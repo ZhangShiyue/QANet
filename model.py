@@ -369,7 +369,7 @@ class Model(object):
             dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
             logit = tf.matmul(prev, embedding, transpose_b=True)
             dist_g = tf.nn.softmax(logit)
-            final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
+            final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
 
             # beam search
             prev = tf.nn.bias_add(tf.transpose(final_dist), prev_probs)  # num_symbols*BEAM_SIZE

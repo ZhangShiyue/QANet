@@ -311,10 +311,10 @@ def dot_product_attention(q,
     """
     with tf.variable_scope(scope, default_name="dot_product_attention", reuse=reuse):
         # [batch, num_heads, query_length, memory_length]
-        # if is_training:
-        logits = tf.matmul(q, k, transpose_b=True)
-        # else:
-        #     logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
+        if is_training:
+            logits = tf.matmul(q, k, transpose_b=True)
+        else:
+            logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
         if bias:
             b = tf.get_variable("bias",
                                 logits.shape[-1],
@@ -332,10 +332,10 @@ def dot_product_attention(q,
         weights = tf.nn.softmax(logits, name="attention_weights")
         # dropping out the attention links for each of the heads
         weights = tf.nn.dropout(weights, 1.0 - dropout)
-        # if is_training:
-        res = tf.matmul(weights, v)
-        # else:
-        #     res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
+        if is_training:
+            res = tf.matmul(weights, v)
+        else:
+            res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
         return res, weights
 
 
