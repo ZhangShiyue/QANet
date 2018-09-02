@@ -289,9 +289,9 @@ def test_bleu(config):
         answer = json.load(fh)
 
     groundtruths, answers = evaluate_bleu(eval_file, answer)
-    with open("{}_generated".format(config.answer_file), 'w') as f:
+    with open("{}_b{}_generated".format(config.answer_file, config.beam_size), 'w') as f:
         f.write('\n'.join([' '.join(answer) for answer in answers]).encode('utf-8'))
-    with open("{}_groundtruth".format(config.answer_file), 'w') as f:
+    with open("{}_b{}_groundtruth".format(config.answer_file, config.beam_size), 'w') as f:
         f.write('\n'.join([' '.join(answer) for answer in groundtruths]).encode('utf-8'))
 
 

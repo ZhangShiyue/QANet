@@ -6,8 +6,8 @@ This file is taken and modified from R-Net by HKUST-KnowComp
 https://github.com/HKUST-KnowComp/R-Net
 '''
 
-from prepro import prepro, prepro_rerank
-from main import train, test, test_beam, test_rerank, test_reranked
+from prepro import prepro
+from main import train, test, test_beam, test_bleu, test_rerank, test_reranked
 
 flags = tf.flags
 
@@ -108,7 +108,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 1, "Batch size")
-flags.DEFINE_integer("beam_size", 5, "Beam size")
+flags.DEFINE_integer("beam_size", 10, "Beam size")
 flags.DEFINE_integer("num_steps", 150000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 10000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
@@ -136,8 +136,6 @@ def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
-    elif config.mode == "prepro_rerank":
-        prepro_rerank(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "debug":
@@ -150,6 +148,8 @@ def main(_):
         test(config)
     elif config.mode == "test_beam":
         test_beam(config)
+    elif config.mode == "test_bleu":
+        test_bleu(config)
     elif config.mode == "test_rerank":
         test_rerank(config)
     elif config.mode == "test_reranked":
