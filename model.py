@@ -257,6 +257,7 @@ class Model(object):
                 for k, p_gen in enumerate(p_gens):
                     p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
 
+            self.prev_probs = prev_probs
             self.batch_loss, self.loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
             self.symbols = symbols
 
