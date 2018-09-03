@@ -58,7 +58,7 @@ def train(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
+                loss, gen_loss, pre_loss, train_op = sess.run([model.loss, model.gen_loss, model.pre_loss, model.train_op], feed_dict={
                     model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
                     model.y1: y1, model.y2: y2,
                     model.qa_id: qa_id, model.dropout: config.dropout})

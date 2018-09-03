@@ -13,21 +13,29 @@ class Model(object):
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            self.c = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
+            self.c = tf.placeholder(tf.int32,
+                                    [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
                                     "context")
-            self.q = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit],
+            self.q = tf.placeholder(tf.int32,
+                                    [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit],
                                     "question")
-            self.a = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit],
+            self.a = tf.placeholder(tf.int32,
+                                    [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit],
                                     "answer")
-            self.ch = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit,
-                                                config.char_limit], "context_char")
-            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit,
-                                                config.char_limit], "question_char")
-            self.ah = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit,
-                                                config.char_limit], "answer_char")
-            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
+            self.ch = tf.placeholder(tf.int32,
+                                     [None, config.para_limit if trainable and (not rerank) else config.test_para_limit,
+                                      config.char_limit], "context_char")
+            self.qh = tf.placeholder(tf.int32,
+                                     [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit,
+                                      config.char_limit], "question_char")
+            self.ah = tf.placeholder(tf.int32,
+                                     [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit,
+                                      config.char_limit], "answer_char")
+            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (
+            not rerank) else config.test_para_limit],
                                      "answer_index1")
-            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
+            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (
+            not rerank) else config.test_para_limit],
                                      "answer_index2")
             self.batch_size = config.batch_size if trainable and (not rerank) else config.test_batch_size
             self.qa_id = tf.placeholder(tf.int32, [self.batch_size], "qa_id")
@@ -37,9 +45,10 @@ class Model(object):
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
             original_word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
-                                            trainable=False)
+                                                trainable=False)
             additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]),
-                                          [config.para_limit if trainable and (not rerank) else config.test_para_limit, 1])
+                                          [config.para_limit if trainable and (not rerank) else config.test_para_limit,
+                                           1])
             self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
             self.num_voc = len(word_mat) + (config.para_limit if trainable and (not rerank) else config.test_para_limit)
 
@@ -94,31 +103,41 @@ class Model(object):
                     self.char_mat, self.ch), [N * PL, CL, dc])
             ah_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.ah), [N * AL, CL, dc])
+            qh_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.qh), [N * QL, CL, dc])
             ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
             ah_emb = tf.nn.dropout(ah_emb, 1.0 - 0.5 * self.dropout)
+            qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
 
             # Bidaf style conv-highway encoder
             ch_emb = conv(ch_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=None)
             ah_emb = conv(ah_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
+            qh_emb = conv(qh_emb, dc,
+                          bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
 
             ch_emb = tf.reduce_max(ch_emb, axis=1)
             ah_emb = tf.reduce_max(ah_emb, axis=1)
+            qh_emb = tf.reduce_max(qh_emb, axis=1)
 
             ch_emb = tf.reshape(ch_emb, [N, PL, ch_emb.shape[-1]])
             ah_emb = tf.reshape(ah_emb, [N, AL, ah_emb.shape[-1]])
+            qh_emb = tf.reshape(qh_emb, [N, QL, qh_emb.shape[-1]])
 
             c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.c), 1.0 - self.dropout)
             a_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.a), 1.0 - self.dropout)
+            q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.q), 1.0 - self.dropout)
 
             c_emb = tf.concat([c_emb, ch_emb], axis=2)
             a_emb = tf.concat([a_emb, ah_emb], axis=2)
+            q_emb = tf.concat([q_emb, qh_emb], axis=2)
 
             c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
             a_emb = highway(a_emb, scope="highway", dropout=self.dropout, reuse=True)
+            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
 
-        with tf.variable_scope("Encoder"):
+        with tf.variable_scope("Input_Encoder_Layer"):
             c = residual_block(c_emb,
                                num_blocks=1,
                                num_conv_layers=4,
@@ -138,12 +157,26 @@ class Model(object):
                                num_filters=d,
                                num_heads=nh,
                                scope="Input_Encoder_Block",
-                               reuse=True,  # Share the weights between passage and question
+                               reuse=True,  # Share the weights with passage
+                               bias=False,
+                               dropout=self.dropout,
+                               input_projection=True)
+            q = residual_block(q_emb,
+                               num_blocks=1,
+                               num_conv_layers=4,
+                               kernel_size=7,
+                               mask=self.q_mask,
+                               num_filters=d,
+                               num_heads=nh,
+                               scope="Input_Encoder_Block",
+                               reuse=True,  # Share the weights with passage and answer
                                bias=False,
                                dropout=self.dropout,
                                input_projection=True)
 
-            with tf.variable_scope("BiDAF"):
+        with tf.variable_scope("BiDAF"):
+
+            with tf.variable_scope("QG"):
                 # BiDAF
                 # C = tf.tile(tf.expand_dims(c,2),[1,1,self.q_maxlen,1])
                 # Q = tf.tile(tf.expand_dims(q,1),[1,self.c_maxlen,1,1])
@@ -156,29 +189,62 @@ class Model(object):
                 S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
                 self.c2a = tf.matmul(S_, a)
                 self.a2c = tf.matmul(tf.matmul(S_, S_T), c)
-                attention_outputs = [c, self.c2a, c * self.c2a, c * self.a2c]
+                attention_outputs_qg = [c, self.c2a, c * self.c2a, c * self.a2c]
 
-            inputs = tf.concat(attention_outputs, axis=-1)
-            self.enc = [conv(inputs, d, name="input_projection")]
-            for i in range(1):
-                if i % 2 == 0:  # dropout every 2 blocks
-                    self.enc[i] = tf.nn.dropout(self.enc[i], 1.0 - self.dropout)
-                self.enc.append(residual_block(self.enc[i],
-                                               num_blocks=7,
-                                               num_conv_layers=2,
-                                               kernel_size=5,
-                                               mask=self.c_mask,
-                                               num_filters=d,
-                                               num_heads=nh,
-                                               seq_len=self.c_len,
-                                               scope="Model_Encoder",
-                                               bias=False,
-                                               reuse=True if i > 0 else None,
-                                               dropout=self.dropout))
+            with tf.variable_scope("AP"):
+                # BiDAF
+                S = optimized_trilinear_for_attention([c, q], self.c_maxlen, self.q_maxlen,
+                                                      input_keep_prob=1.0 - self.dropout)
+                mask_q = tf.expand_dims(self.q_mask, 1)
+                S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+                mask_c = tf.expand_dims(self.c_mask, 2)
+                S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+                self.c2q = tf.matmul(S_, q)
+                self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+                attention_outputs_ap = [c, self.c2q, c * self.c2q, c * self.q2c]
+
+        with tf.variable_scope("Model_Encoder_Layer"):
+            with tf.variable_scope("QG"):
+                inputs = tf.concat(attention_outputs_qg, axis=-1)
+                self.enc_qg = [conv(inputs, d, name="input_projection")]
+                for i in range(1):
+                    if i % 2 == 0:  # dropout every 2 blocks
+                        self.enc_qg[i] = tf.nn.dropout(self.enc_qg[i], 1.0 - self.dropout)
+                    self.enc_qg.append(residual_block(self.enc_qg[i],
+                                                      num_blocks=7,
+                                                      num_conv_layers=2,
+                                                      kernel_size=5,
+                                                      mask=self.c_mask,
+                                                      num_filters=d,
+                                                      num_heads=nh,
+                                                      seq_len=self.c_len,
+                                                      scope="Model_Encoder",
+                                                      bias=False,
+                                                      reuse=True if i > 0 else None,
+                                                      dropout=self.dropout))
+
+            with tf.variable_scope("AP"):
+                inputs = tf.concat(attention_outputs_ap, axis=-1)
+                self.enc_ap = [conv(inputs, d, name="input_projection")]
+                for i in range(3):
+                    if i % 2 == 0:  # dropout every 2 blocks
+                        self.enc_ap[i] = tf.nn.dropout(self.enc_ap[i], 1.0 - self.dropout)
+                    self.enc_ap.append(residual_block(self.enc_ap[i],
+                                                      num_blocks=7,
+                                                      num_conv_layers=2,
+                                                      kernel_size=5,
+                                                      mask=self.c_mask,
+                                                      num_filters=d,
+                                                      num_heads=nh,
+                                                      seq_len=self.c_len,
+                                                      scope="Model_Encoder",
+                                                      bias=False,
+                                                      reuse=True if i > 0 else None,
+                                                      dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
             # memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
-            memory = self.enc[1]
+            memory = self.enc_qg[1]
             oups = tf.split(self.q, [1] * self.q_maxlen, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
@@ -258,29 +324,33 @@ class Model(object):
                     p_gens[k] = tf.expand_dims(tf.gather(p_gen, 0), 0)
 
             self.prev_probs = prev_probs
-            self.batch_loss, self.loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
+            self.batch_loss, self.gen_loss = self._compute_loss(outputs, oups, attn_ws, p_gens)
             self.symbols = symbols
 
-        # with tf.variable_scope("Output_Layer"):
-        #     start_logits = tf.squeeze(
-        #             conv(tf.concat([self.enc[1], self.enc[2]], axis=-1), 1, bias=False, name="start_pointer"), -1)
-        #     end_logits = tf.squeeze(
-        #             conv(tf.concat([self.enc[1], self.enc[3]], axis=-1), 1, bias=False, name="end_pointer"), -1)
-        #     self.logits = [mask_logits(start_logits, mask=self.c_mask),
-        #                    mask_logits(end_logits, mask=self.c_mask)]
-        #     logits1, logits2 = [l for l in self.logits]
-        #     outer = tf.matmul(tf.expand_dims(tf.nn.softmax(logits1), axis=2),
-        #                       tf.expand_dims(tf.nn.softmax(logits2), axis=1))
-        #     outer = tf.matrix_band_part(outer, 0, config.ans_limit)
-        #     self.yp1 = tf.argmax(tf.reduce_max(outer, axis=2), axis=1)
-        #     self.yp2 = tf.argmax(tf.reduce_max(outer, axis=1), axis=1)
-        #     if self.pred_loop_function:
-        #         self.byp1, self.byp2 = self.pred_loop_function(outer)
-        #     losses = tf.nn.softmax_cross_entropy_with_logits(
-        #             logits=logits1, labels=self.y1)
-        #     losses2 = tf.nn.softmax_cross_entropy_with_logits(
-        #             logits=logits2, labels=self.y2)
-        #     self.loss = tf.reduce_mean(losses + losses2)
+        with tf.variable_scope("Output_Layer"):
+            start_logits = tf.squeeze(
+                    conv(tf.concat([self.enc_ap[1], self.enc_ap[2]], axis=-1), 1, bias=False, name="start_pointer"), -1)
+            end_logits = tf.squeeze(
+                    conv(tf.concat([self.enc_ap[1], self.enc_ap[3]], axis=-1), 1, bias=False, name="end_pointer"), -1)
+            self.logits = [mask_logits(start_logits, mask=self.c_mask),
+                           mask_logits(end_logits, mask=self.c_mask)]
+            logits1, logits2 = [l for l in self.logits]
+            outer = tf.matmul(tf.expand_dims(tf.nn.softmax(logits1), axis=2),
+                              tf.expand_dims(tf.nn.softmax(logits2), axis=1))
+            outer = tf.matrix_band_part(outer, 0, config.ans_limit)
+            bprobs, bindex = tf.nn.top_k(tf.reshape(outer, [-1, PL * PL]), k=config.beam_size)
+            self.byp1 = bindex // PL
+            self.byp2 = bindex % PL
+            self.bprobs = -tf.log(bprobs)
+            self.yp1 = tf.argmax(tf.reduce_max(outer, axis=2), axis=1)
+            self.yp2 = tf.argmax(tf.reduce_max(outer, axis=1), axis=1)
+            losses = tf.nn.softmax_cross_entropy_with_logits(
+                    logits=logits1, labels=self.y1)
+            losses2 = tf.nn.softmax_cross_entropy_with_logits(
+                    logits=logits2, labels=self.y2)
+            self.pre_loss = tf.reduce_mean(losses + losses2)
+
+        self.loss = self.gen_loss + self.pre_loss
 
         if config.l2_norm is not None:
             variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
@@ -305,21 +375,6 @@ class Model(object):
     def get_global_step(self):
         return self.global_step
 
-    def _pred_beam_search(self, beam_size):
-        def loop_function(outer):
-            PL = outer.get_shape()[1].value
-            bprobs1, byp1 = tf.nn.top_k(tf.log(tf.reduce_max(outer, axis=2)), k=beam_size)
-            bprobs2 = tf.tile(tf.log(tf.reduce_max(outer, axis=1)), [beam_size, 1]) + tf.transpose(bprobs1)
-            bprobs2 = tf.reshape(bprobs2, [1, PL * beam_size])
-            bprobs2, bindex = tf.nn.top_k(bprobs2, k=beam_size)
-            bindex = tf.squeeze(bindex, 0)
-            index = bindex // PL
-            byp2 = bindex % PL
-            byp1 = tf.gather(tf.squeeze(byp1, 0), index)
-            return byp1, byp2
-
-        return loop_function
-
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens):
         batch_size = ouputs[0].get_shape()[0].value
         PL = self.c.get_shape()[1].value
@@ -340,8 +395,9 @@ class Model(object):
             # crossent1 = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
             target = tf.reshape(oup, [-1])
             # crossent0 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
-            crossent = tf.cond(self.global_step < 10000, lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
-                              lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
+            crossent = tf.cond(self.global_step < 10000,
+                               lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
+                               lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
             weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)

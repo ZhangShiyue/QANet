@@ -73,7 +73,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
-                        answer_tokens.append(word_tokenize(answer_text))
+                        answer_tokens.append(["--GO--"] + word_tokenize(answer_text) + ["--EOS--"])
                         answer_chars.append([list(token) for token in answer_tokens[-1]])
                         max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
@@ -212,7 +212,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
     def filter_func(example, is_test=False):
         return len(example["context_tokens"]) > para_limit or \
                len(example["ques_tokens"]) > ques_limit or \
-               (example["y2s"][0] - example["y1s"][0]) > ans_limit - 1
+               (example["y2s"][0] - example["y1s"][0]) > (ans_limit - 3)
 
     print("Processing {} examples...".format(data_type))
     writer = tf.python_io.TFRecordWriter(out_file)
