@@ -66,6 +66,12 @@ def train(config):
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
+                    loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="model/gen_loss", simple_value=gen_loss), ])
+                    writer.add_summary(loss_sum, global_step)
+                    loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="model/pre_loss", simple_value=pre_loss), ])
+                    writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
                     # _, summ = evaluate_batch(config, model, config.val_num_batches,
                     #                          train_eval_file, sess, "train", train_iterator)
