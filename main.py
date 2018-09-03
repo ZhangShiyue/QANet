@@ -191,14 +191,15 @@ def test(config):
             answer_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                beam_symbols, prev_probs = sess.run([model.symbols, model.prev_probs], feed_dict={model.c: c, model.q: q, model.a: a,
+                bsymbols, prev_probs = sess.run([model.symbols, model.prev_probs], feed_dict={model.c: c, model.q: q, model.a: a,
                                                              model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
                                                              model.y2: y2, model.qa_id: qa_id})
                 context = eval_file[str(qa_id[0])]["context"].replace(
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 context_tokens = word_tokenize(context)
+                bsymbols = zip(*bsymbols)
                 answers = []
-                for symbols, prev_prob in zip(beam_symbols, prev_probs):
+                for symbols, prev_prob in zip(bsymbols, prev_probs):
                     symbols = list(symbols)
                     if 3 in symbols:
                         symbols = symbols[:symbols.index(3)]
