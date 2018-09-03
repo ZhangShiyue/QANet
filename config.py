@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
-from main import train, test, test_beam, test_bleu, test_rerank, test_reranked
+from main import train, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
 
 flags = tf.flags
 
@@ -154,6 +154,8 @@ def main(_):
         test_rerank(config)
     elif config.mode == "test_reranked":
         test_reranked(config)
+    elif config.mode == "tmp":
+        tmp(config)
     else:
         print("Unknown mode")
         exit(0)
