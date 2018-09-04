@@ -197,40 +197,42 @@ def test(config):
             answer_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                bsymbols, prev_probs = sess.run([model.symbols, model.prev_probs], feed_dict={model.c: c, model.q: q, model.a: a,
+                bsymbols, prev_probs, yp1, yp2 = sess.run([model.symbols, model.prev_probs, model.yp2, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
                                                              model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
                                                              model.y2: y2, model.qa_id: qa_id})
-                context = eval_file[str(qa_id[0])]["context"].replace(
-                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                context_tokens = word_tokenize(context)
-                bsymbols = zip(*bsymbols)
-                answers = []
-                for symbols, prev_prob in zip(bsymbols, prev_probs):
-                    symbols = list(symbols)
-                    if 3 in symbols:
-                        symbols = symbols[:symbols.index(3)]
-                    answer = u' '.join([id2word[symbol] if symbol in id2word
-                                        else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                    # deal with special symbols like %, $ etc
-                    elim_pre_spas = [u' %', u" 's", u' ,']
-                    for s in elim_pre_spas:
-                        if s in answer:
-                            answer = s[1:].join(answer.split(s))
-                    elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                    for s in elim_beh_spas:
-                        if s in answer:
-                            answer = s[:-1].join(answer.split(s))
-                    elim_both_spas = [u' - ']
-                    for s in elim_both_spas:
-                        if s in answer:
-                            answer = s[1:-1].join(answer.split(s))
-                    answers.append((answer, str(-prev_prob)))
-                answer_dict_ = {str(qa_id[0]): answers}
+                # context = eval_file[str(qa_id[0])]["context"].replace(
+                #         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                # context_tokens = word_tokenize(context)
+                # bsymbols = zip(*bsymbols)
+                answer_dict_, _ = convert_tokens(eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
                 answer_dict.update(answer_dict_)
-            # metrics = evaluate(eval_file, answer_dict)
+                # answers = []
+                # for symbols, prev_prob in zip(bsymbols, prev_probs):
+                #     symbols = list(symbols)
+                #     if 3 in symbols:
+                #         symbols = symbols[:symbols.index(3)]
+                #     answer = u' '.join([id2word[symbol] if symbol in id2word
+                #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
+                #     # deal with special symbols like %, $ etc
+                #     elim_pre_spas = [u' %', u" 's", u' ,']
+                #     for s in elim_pre_spas:
+                #         if s in answer:
+                #             answer = s[1:].join(answer.split(s))
+                #     elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                #     for s in elim_beh_spas:
+                #         if s in answer:
+                #             answer = s[:-1].join(answer.split(s))
+                #     elim_both_spas = [u' - ']
+                #     for s in elim_both_spas:
+                #         if s in answer:
+                #             answer = s[1:-1].join(answer.split(s))
+                #     answers.append(answer)
+                # answer_dict_ = {str(qa_id[0]): answers[0]}
+                # answer_dict.update(answer_dict_)
+            metrics = evaluate(eval_file, answer_dict, is_answer=True)
             with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
                 json.dump(answer_dict, fh)
-            # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+            print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
 
 def test_beam(config):
@@ -295,13 +297,13 @@ def test_rerank(config):
 def test_bleu(config):
     with open(config.test_eval_file, "r") as fh:
         eval_file = json.load(fh)
-    with open("{}.json".format(config.answer_file), "r") as fh:
+    with open("{}_b{}.json".format(config.question_file, config.beam_size), "r") as fh:
         answer = json.load(fh)
 
     groundtruths, answers = evaluate_bleu(eval_file, answer)
-    with open("{}_b{}_generated".format(config.answer_file, config.beam_size), 'w') as f:
+    with open("{}_b{}_generated".format(config.question_file, config.beam_size), 'w') as f:
         f.write('\n'.join([' '.join(answer) for answer in answers]).encode('utf-8'))
-    with open("{}_b{}_groundtruth".format(config.answer_file, config.beam_size), 'w') as f:
+    with open("{}_b{}_groundtruth".format(config.question_file, config.beam_size), 'w') as f:
         f.write('\n'.join([' '.join(answer) for answer in groundtruths]).encode('utf-8'))
 
 
@@ -330,14 +332,20 @@ def test_reranked(config):
 def tmp(config):
     with open(config.test_eval_file, "r") as fh:
         eval_file = json.load(fh)
-    with open(config.beam_search_file, "r") as fh:
-        beam_search_file = json.load(fh)
+    with open("{}_b{}.json".format(config.answer_file, config.beam_size), "r") as fh:
+        answer = json.load(fh)
 
-    for qid in beam_search_file:
-        print qid
-        for ans, _, _, _ in beam_search_file[qid]:
-            if ans in eval_file[qid]["answers"]:
-                print ans.encode("utf-8"), "*"
-            else:
-                print ans.encode("utf-8")
-        print
+    for qid in answer:
+        if len(word_tokenize(answer[qid])) > 1:
+            print answer[qid].encode("utf-8")
+    # metrics = evaluate(eval_file, answer, is_answer=True)
+    # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+
+    # for qid in beam_search_file:
+    #     print qid
+    #     for ans, _, _, _ in beam_search_file[qid]:
+    #         if ans in eval_file[qid]["answers"]:
+    #             print ans.encode("utf-8"), "*"
+    #         else:
+    #             print ans.encode("utf-8")
+    #     print

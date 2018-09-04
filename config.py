@@ -41,6 +41,7 @@ dev_meta = os.path.join(target_dir, "dev_meta.json")
 test_meta = os.path.join(target_dir, "test_meta.json")
 word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
+question_file = os.path.join(answer_dir, "question")
 answer_file = os.path.join(answer_dir, "answer")
 
 rerank_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5.tfrecords")
@@ -78,6 +79,7 @@ flags.DEFINE_string("test_eval_file", test_eval, "Out file for test eval")
 flags.DEFINE_string("dev_meta", dev_meta, "Out file for dev meta")
 flags.DEFINE_string("test_meta", test_meta, "Out file for test meta")
 flags.DEFINE_string("answer_file", answer_file, "Out file for answer")
+flags.DEFINE_string("question_file", question_file, "Out file for answer")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
@@ -130,7 +132,7 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 def main(_):
     config = flags.FLAGS

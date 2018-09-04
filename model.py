@@ -87,8 +87,7 @@ class Model(object):
                 self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, beta1=0.8, beta2=0.999, epsilon=1e-7)
                 grads = self.opt.compute_gradients(self.loss)
                 gradients, variables = zip(*grads)
-                capped_grads, _ = tf.clip_by_global_norm(
-                        gradients, config.grad_clip)
+                capped_grads, _ = tf.clip_by_global_norm(gradients, config.grad_clip)
                 self.train_op = self.opt.apply_gradients(
                         zip(capped_grads, variables), global_step=self.global_step)
 
