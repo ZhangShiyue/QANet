@@ -159,32 +159,30 @@ class Model(object):
 
         with tf.variable_scope("BiDAF"):
 
-            with tf.variable_scope("QG"):
-                # BiDAF
-                # C = tf.tile(tf.expand_dims(c,2),[1,1,self.q_maxlen,1])
-                # Q = tf.tile(tf.expand_dims(q,1),[1,self.c_maxlen,1,1])
-                # S = trilinear([C, Q, C*Q], input_keep_prob = 1.0 - self.dropout)
-                S = optimized_trilinear_for_attention([c, a], self.c_maxlen, self.a_maxlen,
-                                                      input_keep_prob=1.0 - self.dropout)
-                mask_a = tf.expand_dims(self.a_mask, 1)
-                S_ = tf.nn.softmax(mask_logits(S, mask=mask_a))
-                mask_c = tf.expand_dims(self.c_mask, 2)
-                S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
-                self.c2a = tf.matmul(S_, a)
-                self.a2c = tf.matmul(tf.matmul(S_, S_T), c)
-                attention_outputs_qg = [c, self.c2a, c * self.c2a, c * self.a2c]
+            # for question generation
+            # C = tf.tile(tf.expand_dims(c,2),[1,1,self.q_maxlen,1])
+            # Q = tf.tile(tf.expand_dims(q,1),[1,self.c_maxlen,1,1])
+            # S = trilinear([C, Q, C*Q], input_keep_prob = 1.0 - self.dropout)
+            S = optimized_trilinear_for_attention([c, a], self.c_maxlen, self.a_maxlen,
+                                                  input_keep_prob=1.0 - self.dropout)
+            mask_a = tf.expand_dims(self.a_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_a))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2a = tf.matmul(S_, a)
+            self.a2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs_qg = [c, self.c2a, c * self.c2a, c * self.a2c]
 
-            with tf.variable_scope("AP"):
-                # BiDAF
-                S = optimized_trilinear_for_attention([c, q], self.c_maxlen, self.q_maxlen,
-                                                      input_keep_prob=1.0 - self.dropout)
-                mask_q = tf.expand_dims(self.q_mask, 1)
-                S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
-                mask_c = tf.expand_dims(self.c_mask, 2)
-                S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
-                self.c2q = tf.matmul(S_, q)
-                self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
-                attention_outputs_ap = [c, self.c2q, c * self.c2q, c * self.q2c]
+            # for answer prediction
+            S = optimized_trilinear_for_attention([c, q], self.c_maxlen, self.q_maxlen,
+                                                  input_keep_prob=1.0 - self.dropout, reuse=True)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs_ap = [c, self.c2q, c * self.c2q, c * self.q2c]
 
         with tf.variable_scope("Model_Encoder_Layer"):
             with tf.variable_scope("QG"):
@@ -333,7 +331,7 @@ class Model(object):
                     logits=logits2, labels=self.y2)
             self.pre_loss = tf.reduce_mean(losses + losses2)
 
-        self.loss = self.pre_loss
+        self.loss = self.pre_loss + self.gen_loss
 
         if config.l2_norm is not None:
             variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
