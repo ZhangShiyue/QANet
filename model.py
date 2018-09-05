@@ -13,30 +13,14 @@ class Model(object):
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            self.c = tf.placeholder(tf.int32,
-                                    [None, config.para_limit if trainable and (not rerank) else config.test_para_limit],
-                                    "context")
-            self.q = tf.placeholder(tf.int32,
-                                    [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit],
-                                    "question")
-            self.a = tf.placeholder(tf.int32,
-                                    [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit],
-                                    "answer")
-            self.ch = tf.placeholder(tf.int32,
-                                     [None, config.para_limit if trainable and (not rerank) else config.test_para_limit,
-                                      config.char_limit], "context_char")
-            self.qh = tf.placeholder(tf.int32,
-                                     [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit,
-                                      config.char_limit], "question_char")
-            self.ah = tf.placeholder(tf.int32,
-                                     [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit,
-                                      config.char_limit], "answer_char")
-            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (
-            not rerank) else config.test_para_limit],
-                                     "answer_index1")
-            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (
-            not rerank) else config.test_para_limit],
-                                     "answer_index2")
+            self.c = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit], "context")
+            self.q = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit], "question")
+            self.a = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit], "answer")
+            self.ch = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit, config.char_limit], "context_char")
+            self.qh = tf.placeholder(tf.int32, [None, config.ques_limit if trainable and (not rerank) else config.test_ques_limit, config.char_limit], "question_char")
+            self.ah = tf.placeholder(tf.int32, [None, config.ans_limit if trainable and (not rerank) else config.test_ans_limit, config.char_limit], "answer_char")
+            self.y1 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit], "answer_index1")
+            self.y2 = tf.placeholder(tf.int32, [None, config.para_limit if trainable and (not rerank) else config.test_para_limit], "answer_index2")
             self.batch_size = config.batch_size if trainable and (not rerank) else config.test_batch_size
             self.qa_id = tf.placeholder(tf.int32, [self.batch_size], "qa_id")
 
@@ -56,7 +40,7 @@ class Model(object):
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
             self.cell = tf.nn.rnn_cell.LSTMCell(config.hidden)
-            self.loop_function = None if trainable or self.rerank \
+            self.loop_function = None if trainable or rerank \
                 else self._extract_argmax_and_embed(self.word_mat, self.num_voc, config.beam_size, self.c)
 
             self.c_mask = tf.cast(self.c, tf.bool)
@@ -100,28 +84,28 @@ class Model(object):
         with tf.variable_scope("Input_Embedding_Layer"):
             ch_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.ch), [N * PL, CL, dc])
-            ah_emb = tf.reshape(tf.nn.embedding_lookup(
-                    self.char_mat, self.ah), [N * AL, CL, dc])
+            # ah_emb = tf.reshape(tf.nn.embedding_lookup(
+            #         self.char_mat, self.ah), [N * AL, CL, dc])
             qh_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.qh), [N * QL, CL, dc])
             ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
-            ah_emb = tf.nn.dropout(ah_emb, 1.0 - 0.5 * self.dropout)
+            # ah_emb = tf.nn.dropout(ah_emb, 1.0 - 0.5 * self.dropout)
             qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
 
             # Bidaf style conv-highway encoder
             ch_emb = conv(ch_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=None)
-            ah_emb = conv(ah_emb, dc,
-                          bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
+            # ah_emb = conv(ah_emb, dc,
+            #               bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
             qh_emb = conv(qh_emb, dc,
                           bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv", reuse=True)
 
             ch_emb = tf.reduce_max(ch_emb, axis=1)
-            ah_emb = tf.reduce_max(ah_emb, axis=1)
+            # ah_emb = tf.reduce_max(ah_emb, axis=1)
             qh_emb = tf.reduce_max(qh_emb, axis=1)
 
             ch_emb = tf.reshape(ch_emb, [N, PL, ch_emb.shape[-1]])
-            ah_emb = tf.reshape(ah_emb, [N, AL, ah_emb.shape[-1]])
+            # ah_emb = tf.reshape(ah_emb, [N, AL, ah_emb.shape[-1]])
             qh_emb = tf.reshape(qh_emb, [N, QL, qh_emb.shape[-1]])
 
             c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.c), 1.0 - self.dropout)
@@ -129,11 +113,11 @@ class Model(object):
             q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.q), 1.0 - self.dropout)
 
             c_emb = tf.concat([c_emb, ch_emb], axis=2)
-            a_emb = tf.concat([a_emb, ah_emb], axis=2)
+            # a_emb = tf.concat([a_emb, ah_emb], axis=2)
             q_emb = tf.concat([q_emb, qh_emb], axis=2)
 
             c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
-            a_emb = highway(a_emb, scope="highway", dropout=self.dropout, reuse=True)
+            # a_emb = highway(a_emb, scope="highway", dropout=self.dropout, reuse=True)
             q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
 
         with tf.variable_scope("Input_Encoder_Layer"):
@@ -336,7 +320,7 @@ class Model(object):
             logits1, logits2 = [l for l in self.logits]
             outer = tf.matmul(tf.expand_dims(tf.nn.softmax(logits1), axis=2),
                               tf.expand_dims(tf.nn.softmax(logits2), axis=1))
-            outer = tf.matrix_band_part(outer, 0, config.ans_limit)
+            outer = tf.matrix_band_part(outer, 0, config.ans_limit if self.loop_function is None else config.test_ans_limit)
             bprobs, bindex = tf.nn.top_k(tf.reshape(outer, [-1, PL * PL]), k=config.beam_size)
             self.byp1 = bindex // PL
             self.byp2 = bindex % PL

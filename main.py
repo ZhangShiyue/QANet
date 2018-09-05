@@ -197,20 +197,19 @@ def test(config):
             answer_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                yp1, yp2 = sess.run([model.yp2, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
+                qa_id, byp1, byp2 = sess.run([model.qa_id, model.byp2, model.byp2], feed_dict={model.c: c, model.q: q, model.a: a,
                                                              model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
                                                              model.y2: y2, model.qa_id: qa_id})
                 # context = eval_file[str(qa_id[0])]["context"].replace(
                 #         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 # context_tokens = word_tokenize(context)
                 # bsymbols = zip(*bsymbols)
-                answer_dict_, _ = convert_tokens(eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                answer_dict.update(answer_dict_)
-                # answers = []
-                # for symbols, prev_prob in zip(bsymbols, prev_probs):
-                #     symbols = list(symbols)
-                #     if 3 in symbols:
-                #         symbols = symbols[:symbols.index(3)]
+                answers = []
+                for yp1, yp2 in zip(byp1[0], byp2[0]):
+                    answer_dict_, remapped_dict_ = convert_tokens(
+                            eval_file, qa_id.tolist(), [yp1], [yp2])
+                    answers.append(answer_dict_.values()[0])
+                answer_dict_ = {str(qa_id[0]): answers[0]}
                 #     answer = u' '.join([id2word[symbol] if symbol in id2word
                 #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
                 #     # deal with special symbols like %, $ etc
@@ -228,7 +227,7 @@ def test(config):
                 #             answer = s[1:-1].join(answer.split(s))
                 #     answers.append(answer)
                 # answer_dict_ = {str(qa_id[0]): answers[0]}
-                # answer_dict.update(answer_dict_)
+                answer_dict.update(answer_dict_)
             metrics = evaluate(eval_file, answer_dict, is_answer=True)
             with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
                 json.dump(answer_dict, fh)
