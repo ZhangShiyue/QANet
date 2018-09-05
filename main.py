@@ -73,28 +73,28 @@ def train(config):
                     #         tag="model/pre_loss", simple_value=pre_loss), ])
                     # writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
-                    # _, summ = evaluate_batch(config, model, config.val_num_batches,
-                    #                          train_eval_file, sess, "train", train_iterator)
-                    # for s in summ:
-                    #     writer.add_summary(s, global_step)
-                    #
-                    # metrics, summ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                    #                                dev_eval_file, sess, "dev", dev_iterator)
-                    #
-                    # dev_f1 = metrics["f1"]
-                    # dev_em = metrics["exact_match"]
-                    # if dev_f1 < best_f1 and dev_em < best_em:
-                    #     patience += 1
-                    #     if patience > config.early_stop:
-                    #         break
-                    # else:
-                    #     patience = 0
-                    #     best_em = max(best_em, dev_em)
-                    #     best_f1 = max(best_f1, dev_f1)
-                    #
-                    # for s in summ:
-                    #     writer.add_summary(s, global_step)
-                    # writer.flush()
+                    _, summ = evaluate_batch(config, model, config.val_num_batches,
+                                             train_eval_file, sess, "train", train_iterator)
+                    for s in summ:
+                        writer.add_summary(s, global_step)
+
+                    metrics, summ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                                                   dev_eval_file, sess, "dev", dev_iterator)
+
+                    dev_f1 = metrics["f1"]
+                    dev_em = metrics["exact_match"]
+                    if dev_f1 < best_f1 and dev_em < best_em:
+                        patience += 1
+                        if patience > config.early_stop:
+                            break
+                    else:
+                        patience = 0
+                        best_em = max(best_em, dev_em)
+                        best_f1 = max(best_f1, dev_f1)
+
+                    for s in summ:
+                        writer.add_summary(s, global_step)
+                    writer.flush()
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
@@ -102,63 +102,22 @@ def train(config):
 
 def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, iterator):
     answer_dict = {}
-    with open(config.word_dictionary, "r") as fh:
-        word_dictionary = json.load(fh)
-    id2word = {word_dictionary[w]: w for w in word_dictionary}
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
         c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
-        symbols = sess.run(model.symbols, feed_dict={model.c: c, model.q: q, model.a: a,
-                                                     model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
-                                                     model.y2: y2})
-        symbols = list(symbols)
-        if 3 in symbols:
-            symbols = symbols[:symbols.index(3)]
-        answer = u' '.join([id2word[symbol] for symbol in symbols[1:]])
-        # deal with special symbols like %, $ etc
-        elim_pre_spas = [u' %', u" 's", u' ,']
-        for s in elim_pre_spas:
-            if s in answer:
-                answer = s[1:].join(answer.split(s))
-        elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-        for s in elim_beh_spas:
-            if s in answer:
-                answer = s[:-1].join(answer.split(s))
-        elim_both_spas = [u' - ']
-        for s in elim_both_spas:
-            if s in answer:
-                answer = s[1:-1].join(answer.split(s))
-        answer_dict_ = {str(qa_id[0]): answer}
+        yp1, yp2 = sess.run([model.yp1, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
+                                                               model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
+                                                               model.y2: y2})
+
+        answer_dict_, remapped_dict_ = convert_tokens(
+                eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
         answer_dict.update(answer_dict_)
-    metrics = evaluate(eval_file, answer_dict)
+    metrics = evaluate(eval_file, answer_dict, is_answer=True)
     f1_sum = tf.Summary(value=[tf.Summary.Value(
             tag="{}/f1".format(data_type), simple_value=metrics["f1"]), ])
     em_sum = tf.Summary(value=[tf.Summary.Value(
             tag="{}/em".format(data_type), simple_value=metrics["exact_match"]), ])
     return metrics, [f1_sum, em_sum]
-
-    # answer_dict = {}
-    # losses = []
-    # next_element = iterator.get_next()
-    # for _ in tqdm(range(1, num_batches + 1)):
-    #     c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
-    #     qa_id, loss, yp1, yp2, = sess.run([model.qa_id, model.loss, model.yp1, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
-    #                                                                 model.ch: ch, model.qh: qh, model.ah: ah,
-    #                                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
-    #     answer_dict_, _ = convert_tokens(
-    #             eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-    #     answer_dict.update(answer_dict_)
-    #     losses.append(loss)
-    # loss = np.mean(losses)
-    # metrics = evaluate(eval_file, answer_dict)
-    # metrics["loss"] = loss
-    # loss_sum = tf.Summary(value=[tf.Summary.Value(
-    #         tag="{}/loss".format(data_type), simple_value=metrics["loss"]), ])
-    # f1_sum = tf.Summary(value=[tf.Summary.Value(
-    #         tag="{}/f1".format(data_type), simple_value=metrics["f1"]), ])
-    # em_sum = tf.Summary(value=[tf.Summary.Value(
-    #         tag="{}/em".format(data_type), simple_value=metrics["exact_match"]), ])
-    # return metrics, [loss_sum, f1_sum, em_sum]
 
 
 def test(config):
@@ -170,10 +129,6 @@ def test(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
-    with open(config.word_dictionary, "r") as fh:
-        word_dictionary = json.load(fh)
-
-    id2word = {word_dictionary[w]: w for w in word_dictionary}
     total = meta["total"]
 
     graph = tf.Graph()
@@ -195,38 +150,14 @@ def test(config):
             if config.decay < 1.0:
                 sess.run(model.assign_vars)
             answer_dict = {}
-            for step in tqdm(range(total // config.test_batch_size + 1)):
+            for _ in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                qa_id, byp1, byp2 = sess.run([model.qa_id, model.byp2, model.byp2], feed_dict={model.c: c, model.q: q, model.a: a,
-                                                             model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
-                                                             model.y2: y2, model.qa_id: qa_id})
-                # context = eval_file[str(qa_id[0])]["context"].replace(
-                #         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                # context_tokens = word_tokenize(context)
-                # bsymbols = zip(*bsymbols)
-                answers = []
-                for yp1, yp2 in zip(byp1[0], byp2[0]):
-                    answer_dict_, remapped_dict_ = convert_tokens(
-                            eval_file, qa_id.tolist(), [yp1], [yp2])
-                    answers.append(answer_dict_.values()[0])
-                answer_dict_ = {str(qa_id[0]): answers[0]}
-                #     answer = u' '.join([id2word[symbol] if symbol in id2word
-                #                         else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                #     # deal with special symbols like %, $ etc
-                #     elim_pre_spas = [u' %', u" 's", u' ,']
-                #     for s in elim_pre_spas:
-                #         if s in answer:
-                #             answer = s[1:].join(answer.split(s))
-                #     elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                #     for s in elim_beh_spas:
-                #         if s in answer:
-                #             answer = s[:-1].join(answer.split(s))
-                #     elim_both_spas = [u' - ']
-                #     for s in elim_both_spas:
-                #         if s in answer:
-                #             answer = s[1:-1].join(answer.split(s))
-                #     answers.append(answer)
-                # answer_dict_ = {str(qa_id[0]): answers[0]}
+                yp1, yp2 = sess.run([model.yp1, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
+                                                                       model.ch: ch, model.qh: qh, model.ah: ah,
+                                                                       model.y1: y1,
+                                                                       model.y2: y2})
+                answer_dict_, remapped_dict_ = convert_tokens(
+                        eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
                 answer_dict.update(answer_dict_)
             metrics = evaluate(eval_file, answer_dict, is_answer=True)
             with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
@@ -285,8 +216,9 @@ def test_rerank(config):
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id, can_id = sess.run(test_next_element)
                 batch_loss = sess.run(model.batch_loss, feed_dict={model.c: c, model.q: q, model.a: a, model.ch: ch,
-                                                       model.qh: qh, model.ah: ah, model.y1: y1, model.y2: y2,
-                                                       model.qa_id: qa_id, model.can_id: can_id})
+                                                                   model.qh: qh, model.ah: ah, model.y1: y1,
+                                                                   model.y2: y2,
+                                                                   model.qa_id: qa_id, model.can_id: can_id})
                 for qid, cid, l in zip(qa_id, can_id, batch_loss):
                     scores[(str(qid), str(cid))] = str(l)
             with open(config.listener_score_file, "w") as fh:
@@ -337,14 +269,14 @@ def tmp(config):
     for qid in answer:
         if len(word_tokenize(answer[qid])) > 1:
             print answer[qid].encode("utf-8")
-    # metrics = evaluate(eval_file, answer, is_answer=True)
-    # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+            # metrics = evaluate(eval_file, answer, is_answer=True)
+            # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
-    # for qid in beam_search_file:
-    #     print qid
-    #     for ans, _, _, _ in beam_search_file[qid]:
-    #         if ans in eval_file[qid]["answers"]:
-    #             print ans.encode("utf-8"), "*"
-    #         else:
-    #             print ans.encode("utf-8")
-    #     print
+            # for qid in beam_search_file:
+            #     print qid
+            #     for ans, _, _, _ in beam_search_file[qid]:
+            #         if ans in eval_file[qid]["answers"]:
+            #             print ans.encode("utf-8"), "*"
+            #         else:
+            #             print ans.encode("utf-8")
+            #     print
