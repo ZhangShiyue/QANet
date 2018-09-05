@@ -197,7 +197,7 @@ def test(config):
             answer_dict = {}
             for step in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                bsymbols, prev_probs, yp1, yp2 = sess.run([model.symbols, model.prev_probs, model.yp2, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
+                yp1, yp2 = sess.run([model.yp2, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
                                                              model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
                                                              model.y2: y2, model.qa_id: qa_id})
                 # context = eval_file[str(qa_id[0])]["context"].replace(
