@@ -129,6 +129,10 @@ def test(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
+
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
     total = meta["total"]
 
     graph = tf.Graph()
@@ -152,15 +156,38 @@ def test(config):
             answer_dict = {}
             for _ in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                yp1, yp2 = sess.run([model.yp1, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
+                symbols = sess.run([model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
                                                                        model.ch: ch, model.qh: qh, model.ah: ah,
-                                                                       model.y1: y1,
-                                                                       model.y2: y2})
-                answer_dict_, remapped_dict_ = convert_tokens(
-                        eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                                                                       model.y1: y1, model.y2: y2})
+                context = eval_file[str(qa_id[0])]["context"].replace(
+                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                context_tokens = word_tokenize(context)
+                symbols = list(symbols)[0]
+                if 3 in symbols:
+                    symbols = symbols[:symbols.index(3)]
+                answer = u' '.join([id2word[symbol] if symbol in id2word
+                                    else context_tokens[symbol - len(id2word)] for symbol in symbols])
+                # deal with special symbols like %, $ etc
+                elim_pre_spas = [u' %', u" 's", u' ,']
+                for s in elim_pre_spas:
+                    if s in answer:
+                        answer = s[1:].join(answer.split(s))
+                elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
+                for s in elim_beh_spas:
+                    if s in answer:
+                        answer = s[:-1].join(answer.split(s))
+                elim_both_spas = [u' - ']
+                for s in elim_both_spas:
+                    if s in answer:
+                        answer = s[1:-1].join(answer.split(s))
+                answer_dict_ = {str(qa_id[0]): answer}
                 answer_dict.update(answer_dict_)
-            metrics = evaluate(eval_file, answer_dict, is_answer=True)
-            with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
+
+                # answer_dict_, remapped_dict_ = convert_tokens(
+                #         eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                # answer_dict.update(answer_dict_)
+            metrics = evaluate(eval_file, answer_dict, is_answer=False)
+            with open("{}_b{}.json".format(config.question_file, config.beam_size), "w") as fh:
                 json.dump(answer_dict, fh)
             print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
@@ -263,20 +290,19 @@ def test_reranked(config):
 def tmp(config):
     with open(config.test_eval_file, "r") as fh:
         eval_file = json.load(fh)
-    with open("{}_b{}.json".format(config.answer_file, config.beam_size), "r") as fh:
+    with open("{}_b{}.json".format(config.question_file, config.beam_size), "r") as fh:
         answer = json.load(fh)
 
+    question = {}
     for qid in answer:
-        if len(word_tokenize(answer[qid])) > 1:
-            print answer[qid].encode("utf-8")
-            # metrics = evaluate(eval_file, answer, is_answer=True)
-            # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+        que = answer[qid]
+        que_tokens = que.split(' ')
+        if "--EOS--" in que_tokens:
+            que_tokens = que_tokens[:que_tokens.index("--EOS--")]
+        question[qid] = ' '.join(que_tokens)
 
-            # for qid in beam_search_file:
-            #     print qid
-            #     for ans, _, _, _ in beam_search_file[qid]:
-            #         if ans in eval_file[qid]["answers"]:
-            #             print ans.encode("utf-8"), "*"
-            #         else:
-            #             print ans.encode("utf-8")
-            #     print
+    with open("{}_b{}.json".format(config.question_file, config.beam_size), "w") as fh:
+        json.dump(question, fh)
+    metrics = evaluate(eval_file, question, is_answer=False)
+    print("Exact Match: {}, F1: {}".format(
+            metrics['exact_match'], metrics['f1']))

@@ -295,8 +295,8 @@ class Model(object):
                 symbols.append(prev_symbol)
 
                 # output the final best result of beam search
-                # for k, symbol in enumerate(symbols):
-                #     symbols[k] = tf.gather(symbol, 0)
+                for k, symbol in enumerate(symbols):
+                    symbols[k] = tf.gather(symbol, 0)
                 for k, output in enumerate(outputs):
                     outputs[k] = tf.expand_dims(tf.gather(output, 0), 0)
                 for k, attn_w in enumerate(attn_ws):
