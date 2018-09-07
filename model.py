@@ -185,47 +185,44 @@ class Model(object):
             attention_outputs_ap = [c, self.c2q, c * self.c2q, c * self.q2c]
 
         with tf.variable_scope("Model_Encoder_Layer"):
-            with tf.variable_scope("QG"):
-                inputs = tf.concat(attention_outputs_qg, axis=-1)
-                self.enc_qg = [conv(inputs, d, name="input_projection")]
-                for i in range(1):
-                    if i % 2 == 0:  # dropout every 2 blocks
-                        self.enc_qg[i] = tf.nn.dropout(self.enc_qg[i], 1.0 - self.dropout)
-                    self.enc_qg.append(residual_block(self.enc_qg[i],
-                                                      num_blocks=7,
-                                                      num_conv_layers=2,
-                                                      kernel_size=5,
-                                                      mask=self.c_mask,
-                                                      num_filters=d,
-                                                      num_heads=nh,
-                                                      seq_len=self.c_len,
-                                                      scope="Model_Encoder",
-                                                      bias=False,
-                                                      reuse=True if i > 0 else None,
-                                                      dropout=self.dropout))
+            inputs = tf.concat(attention_outputs_qg, axis=-1)
+            self.enc_qg = [conv(inputs, d, name="input_projection")]
+            for i in range(3):
+                if i % 2 == 0:  # dropout every 2 blocks
+                    self.enc_qg[i] = tf.nn.dropout(self.enc_qg[i], 1.0 - self.dropout)
+                self.enc_qg.append(residual_block(self.enc_qg[i],
+                                                  num_blocks=7,
+                                                  num_conv_layers=2,
+                                                  kernel_size=5,
+                                                  mask=self.c_mask,
+                                                  num_filters=d,
+                                                  num_heads=nh,
+                                                  seq_len=self.c_len,
+                                                  scope="Model_Encoder",
+                                                  bias=False,
+                                                  reuse=True if i > 0 else None,
+                                                  dropout=self.dropout))
 
-            with tf.variable_scope("AP"):
-                inputs = tf.concat(attention_outputs_ap, axis=-1)
-                self.enc_ap = [conv(inputs, d, name="input_projection")]
-                for i in range(3):
-                    if i % 2 == 0:  # dropout every 2 blocks
-                        self.enc_ap[i] = tf.nn.dropout(self.enc_ap[i], 1.0 - self.dropout)
-                    self.enc_ap.append(residual_block(self.enc_ap[i],
-                                                      num_blocks=7,
-                                                      num_conv_layers=2,
-                                                      kernel_size=5,
-                                                      mask=self.c_mask,
-                                                      num_filters=d,
-                                                      num_heads=nh,
-                                                      seq_len=self.c_len,
-                                                      scope="Model_Encoder",
-                                                      bias=False,
-                                                      reuse=True if i > 0 else None,
-                                                      dropout=self.dropout))
+            inputs = tf.concat(attention_outputs_ap, axis=-1)
+            self.enc_ap = [conv(inputs, d, name="input_projection", reuse=True)]
+            for i in range(3):
+                if i % 2 == 0:  # dropout every 2 blocks
+                    self.enc_ap[i] = tf.nn.dropout(self.enc_ap[i], 1.0 - self.dropout)
+                self.enc_ap.append(residual_block(self.enc_ap[i],
+                                                  num_blocks=7,
+                                                  num_conv_layers=2,
+                                                  kernel_size=5,
+                                                  mask=self.c_mask,
+                                                  num_filters=d,
+                                                  num_heads=nh,
+                                                  seq_len=self.c_len,
+                                                  scope="Model_Encoder",
+                                                  bias=False,
+                                                  reuse=True,
+                                                  dropout=self.dropout))
 
         with tf.variable_scope("Decoder_Layer"):
-            # memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
-            memory = self.enc_qg[1]
+            memory = tf.concat([self.enc_qg[1], self.enc_qg[2], self.enc_qg[3]], axis=-1)
             oups = tf.split(self.q, [1] * self.q_maxlen, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))

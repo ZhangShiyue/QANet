@@ -236,12 +236,14 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
 
+        start, end = example["y1s"][-1], example["y2s"][-1]
+        y1[start], y2[end] = 1.0, 1.0
+
         def _get_word(word, i):
             for each in (word, word.lower(), word.capitalize(), word.upper()):
                 if each in word2idx_dict:
                     return word2idx_dict[each]
-            return len(word2idx_dict) + i
-            # return 1
+            return 1
 
         def _get_char(char):
             if char in char2idx_dict:
@@ -250,15 +252,16 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
 
         for i, token in enumerate(example["context_tokens"]):
             wid = _get_word(token, i)
-            context_idxs[i] = wid
-            # if wid < len(word2idx_dict):
-            #     context_voc[wid] = 1
+            context_idxs[i] = wid if wid != 1 else len(word2idx_dict) + i
 
         for i, token in enumerate(example["ques_tokens"]):
-            ques_idxs[i] = _get_word(token, i)
+            wid = _get_word(token, i)
+            ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
+                if wid == 1 and token in example["context_tokens"] else wid
 
         for i, token in enumerate(example["ans_tokens"][0]):
-            ans_idxs[i] = _get_word(token, i)
+            wid = _get_word(token, i)
+            ans_idxs[i] = wid if wid != 1 else len(word2idx_dict) + start + i
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):
@@ -277,9 +280,6 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
                 if j == char_limit:
                     break
                 ans_char_idxs[i, j] = _get_char(char)
-
-        start, end = example["y1s"][-1], example["y2s"][-1]
-        y1[start], y2[end] = 1.0, 1.0
 
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
