@@ -153,16 +153,16 @@ def test(config):
             saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
             if config.decay < 1.0:
                 sess.run(model.assign_vars)
+            answer_dict_d = {}
             answer_dict = {}
             for _ in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                symbols = sess.run([model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
+                symbols, yp1, yp2 = sess.run([model.symbols, model.yp1, model.yp2], feed_dict={model.c: c, model.q: q, model.a: a,
                                                                        model.ch: ch, model.qh: qh, model.ah: ah,
                                                                        model.y1: y1, model.y2: y2})
                 context = eval_file[str(qa_id[0])]["context"].replace(
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 context_tokens = word_tokenize(context)
-                symbols = list(symbols)[0]
                 if 3 in symbols:
                     symbols = symbols[:symbols.index(3)]
                 answer = u' '.join([id2word[symbol] if symbol in id2word
@@ -183,12 +183,18 @@ def test(config):
                 answer_dict_ = {str(qa_id[0]): answer}
                 answer_dict.update(answer_dict_)
 
-                # answer_dict_, remapped_dict_ = convert_tokens(
-                #         eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
-                # answer_dict.update(answer_dict_)
+                answer_dict_, remapped_dict_ = convert_tokens(
+                        eval_file, qa_id.tolist(), yp1.tolist(), yp2.tolist())
+                answer_dict_d.update(answer_dict_)
+
             metrics = evaluate(eval_file, answer_dict, is_answer=False)
             with open("{}_b{}.json".format(config.question_file, config.beam_size), "w") as fh:
                 json.dump(answer_dict, fh)
+            print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+
+            metrics = evaluate(eval_file, answer_dict_d, is_answer=True)
+            with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
+                json.dump(answer_dict_d, fh)
             print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
 
 
