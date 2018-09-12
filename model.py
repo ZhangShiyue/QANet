@@ -300,10 +300,10 @@ class Model(object):
             gold_probs = tf.gather_nd(final_dist, indices)
             # crossent1 = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
             target = tf.reshape(oup, [-1])
-            # crossent0 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
-            crossent = tf.cond(self.global_step < 10000,
-                               lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
-                               lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
+            crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
+            # crossent = tf.cond(self.global_step < 10000,
+            #                    lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
+            #                    lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
             weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)
@@ -332,7 +332,7 @@ class Model(object):
             dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, num_symbols])
             logit = tf.matmul(prev, embedding, transpose_b=True)
             dist_g = tf.nn.softmax(logit)
-            final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
+            final_dist = tf.log(dist_g)
 
             # beam search
             prev = tf.nn.bias_add(tf.transpose(final_dist), prev_probs)  # num_symbols*BEAM_SIZE

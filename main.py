@@ -65,9 +65,9 @@ def train(config):
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="model/gen_loss", simple_value=gen_loss), ])
-                    writer.add_summary(loss_sum, global_step)
+                    # loss_sum = tf.Summary(value=[tf.Summary.Value(
+                    #         tag="model/gen_loss", simple_value=gen_loss), ])
+                    # writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
                     # _, summ = evaluate_batch(config, model, config.val_num_batches,
                     #                          train_eval_file, sess, "train", train_iterator)
@@ -153,9 +153,8 @@ def test(config):
             answer_dict = {}
             for _ in tqdm(range(total // config.test_batch_size + 1)):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                symbols = sess.run([model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
+                symbols = sess.run(model.symbols, feed_dict={model.c: c, model.q: q, model.a: a,
                                                                        model.ch: ch, model.qh: qh})
-                symbols = symbols[0]
                 context = eval_file[str(qa_id[0])]["context"].replace(
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 context_tokens = word_tokenize(context)

@@ -13,9 +13,9 @@ flags = tf.flags
 
 home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 # home = os.path.expanduser("/playpen/home/shiyue/QANet/")
-train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
-dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
-test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
+train_file = os.path.join(home, "squad", "train-v1.1.json")
+dev_file = os.path.join(home, "squad", "dev-v1.1.json")
+test_file = os.path.join(home, "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
