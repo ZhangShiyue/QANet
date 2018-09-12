@@ -212,7 +212,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
     def filter_func(example, is_test=False):
         return len(example["context_tokens"]) > para_limit or \
                len(example["ques_tokens"]) > ques_limit or \
-               (example["y2s"][0] - example["y1s"][0]) > (ans_limit - 3)
+               len(example["ans_tokens"]) > ans_limit
 
     print("Processing {} examples...".format(data_type))
     writer = tf.python_io.TFRecordWriter(out_file)
