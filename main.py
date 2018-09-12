@@ -58,9 +58,8 @@ def train(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, pre_loss, gen_loss, train_op = sess.run([model.loss, model.pre_loss, model.gen_loss, model.train_op], feed_dict={
-                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
-                    model.y1: y1, model.y2: y2,
+                loss, gen_loss, train_op = sess.run([model.loss, model.gen_loss, model.train_op], feed_dict={
+                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh,
                     model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -69,32 +68,29 @@ def train(config):
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/gen_loss", simple_value=gen_loss), ])
                     writer.add_summary(loss_sum, global_step)
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="model/pre_loss", simple_value=pre_loss), ])
-                    writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
-                    _, summ = evaluate_batch(config, model, config.val_num_batches,
-                                             train_eval_file, sess, "train", train_iterator)
-                    for s in summ:
-                        writer.add_summary(s, global_step)
-
-                    metrics, summ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                                                   dev_eval_file, sess, "dev", dev_iterator)
-
-                    dev_f1 = metrics["f1"]
-                    dev_em = metrics["exact_match"]
-                    if dev_f1 < best_f1 and dev_em < best_em:
-                        patience += 1
-                        if patience > config.early_stop:
-                            break
-                    else:
-                        patience = 0
-                        best_em = max(best_em, dev_em)
-                        best_f1 = max(best_f1, dev_f1)
-
-                    for s in summ:
-                        writer.add_summary(s, global_step)
-                    writer.flush()
+                    # _, summ = evaluate_batch(config, model, config.val_num_batches,
+                    #                          train_eval_file, sess, "train", train_iterator)
+                    # for s in summ:
+                    #     writer.add_summary(s, global_step)
+                    #
+                    # metrics, summ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                    #                                dev_eval_file, sess, "dev", dev_iterator)
+                    #
+                    # dev_f1 = metrics["f1"]
+                    # dev_em = metrics["exact_match"]
+                    # if dev_f1 < best_f1 and dev_em < best_em:
+                    #     patience += 1
+                    #     if patience > config.early_stop:
+                    #         break
+                    # else:
+                    #     patience = 0
+                    #     best_em = max(best_em, dev_em)
+                    #     best_f1 = max(best_f1, dev_f1)
+                    #
+                    # for s in summ:
+                    #     writer.add_summary(s, global_step)
+                    # writer.flush()
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
