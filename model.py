@@ -81,7 +81,7 @@ class Model(object):
 
     def forward(self):
         config = self.config
-        N, PL, QL, CL, d, dc, nh, dw, NV = self.batch_size, self.c_maxlen, self.q_maxlen, \
+        N, PL, QL, AL, CL, d, dc, nh, dw, NV = self.batch_size, self.c_maxlen, self.q_maxlen, self.a_maxlen, \
                                            config.char_limit, config.hidden, config.char_dim, config.num_heads, \
                                            config.glove_dim, self.num_voc
 
@@ -174,7 +174,7 @@ class Model(object):
 
         with tf.variable_scope("Decoder_Layer"):
             memory = tf.concat([self.enc[1], self.enc[2], self.enc[3]], axis=-1)
-            oups = tf.split(self.a, [1] * self.a_maxlen, 1)
+            oups = tf.split(self.a, [1] * AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=d, bias=False, scope="c_initial"))
             state = (c, h)
