@@ -12,7 +12,6 @@ from main import train, test, test_beam, test_bleu, test_rerank, test_reranked, 
 flags = tf.flags
 
 home = os.path.expanduser("/nlp/shiyue/QANet/")
-# home = os.path.expanduser("/playpen/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
@@ -26,9 +25,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data"
-log_dir = os.path.join(dir_name, "gen_event_listener1")
-save_dir = os.path.join(dir_name, "gen_model_listener1")
-answer_dir = os.path.join(dir_name, "gen_answer_listener1")
+log_dir = os.path.join(dir_name, "event_ans_pre")
+save_dir = os.path.join(dir_name, "model_ans_pre")
+answer_dir = os.path.join(dir_name, "answer_ans_pre")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -130,7 +129,6 @@ flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained charac
 fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
 flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
 flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 def main(_):
     config = flags.FLAGS

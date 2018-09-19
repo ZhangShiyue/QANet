@@ -19,14 +19,14 @@ class Model(object):
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.qa_id = tf.placeholder(tf.int32, [self.N], "qa_id")
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
-            self.c = tf.placeholder(tf.int32, [None, self.PL], "context")
-            self.q = tf.placeholder(tf.int32, [None, self.QL], "question")
-            self.a = tf.placeholder(tf.int32, [None, self.AL], "answer")
-            self.ch = tf.placeholder(tf.int32, [None, self.PL, self.CL], "context_char")
-            self.qh = tf.placeholder(tf.int32, [None, self.QL, self.CL], "question_char")
-            self.ah = tf.placeholder(tf.int32, [None, self.AL, self.CL], "answer_char")
-            self.y1 = tf.placeholder(tf.int32, [None, self.PL], "answer_index1")
-            self.y2 = tf.placeholder(tf.int32, [None, self.PL], "answer_index2")
+            self.c = tf.placeholder(tf.int32, [self.N, self.PL], "context")
+            self.q = tf.placeholder(tf.int32, [self.N, self.QL], "question")
+            self.a = tf.placeholder(tf.int32, [self.N, self.AL], "answer")
+            self.ch = tf.placeholder(tf.int32, [self.N, self.PL, self.CL], "context_char")
+            self.qh = tf.placeholder(tf.int32, [self.N, self.QL, self.CL], "question_char")
+            self.ah = tf.placeholder(tf.int32, [self.N, self.AL, self.CL], "answer_char")
+            self.y1 = tf.placeholder(tf.int32, [self.N, self.PL], "answer_index1")
+            self.y2 = tf.placeholder(tf.int32, [self.N, self.PL], "answer_index2")
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
             self.a_mask = tf.cast(self.a, tf.bool)
@@ -41,17 +41,18 @@ class Model(object):
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
             if model_tpye == "QANetModel":
-                self.model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.ch, self.y1, self.y2,
+                self.model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
                                         self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.CL,
-                                        config.hidden, config.char_dim, config.word_dim, config.num_head)
+                                        config.hidden, config.char_dim, config.glove_dim, config.num_heads)
+                self.loss = self.model.build_model(self.global_step)
+                self.byp1, self.byp2, self.bprobs = self.sample()
 
-            self.loss = self.model.build_model(self.global_step)
             total_params()
 
             if config.l2_norm is not None:
                 variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                 l2_loss = tf.contrib.layers.apply_regularization(regularizer, variables)
-                self.loss += l2_loss
+                self.loss += config.l2_norm * l2_loss
 
             if config.decay is not None:
                 self.var_ema = tf.train.ExponentialMovingAverage(config.decay)
@@ -76,7 +77,8 @@ class Model(object):
                         zip(capped_grads, variables), global_step=self.global_step)
 
     def sample(self):
-        return self.model.sample(self.config.beam_size)
+        with self.graph.as_default():
+            return self.model.sample(self.config.beam_size)
 
 
 class QANetModel(object):
@@ -118,7 +120,7 @@ class QANetModel(object):
         # compute loss
         losses = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits1, labels=self.y1)
         losses2 = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits2, labels=self.y2)
-        self.loss = tf.reduce_mean(losses + losses2)
+        return tf.reduce_mean(losses + losses2)
 
     def sample(self, beam_size):
         outer = tf.matmul(tf.expand_dims(tf.nn.softmax(self.logits1), axis=2),
@@ -273,7 +275,7 @@ class QANetGenerator(QANetModel):
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(enc)
         # compute loss
-        self.loss = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
+        return self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
 
     def decode(self, enc):
         with tf.variable_scope("Decoder_Layer"):
