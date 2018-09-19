@@ -42,7 +42,6 @@ def train(config):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
-        loss_save = 100.0
         patience = 0
         best_f1 = 0.
         best_em = 0.
@@ -58,7 +57,7 @@ def train(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
+                loss, _ = sess.run([model.loss, model.train_op], feed_dict={
                     model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
@@ -66,13 +65,30 @@ def train(config):
                             tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
-                    _, summ = evaluate_batch(config, model, config.val_num_batches,
-                                             train_eval_file, sess, "train", train_iterator)
-                    for s in summ:
-                        writer.add_summary(s, global_step)
+                    metrics = evaluate_batch(config, model, config.val_num_batches,
+                                             train_eval_file, sess, train_iterator)
+                    loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
+                    writer.add_summary(loss_sum, global_step)
+                    f1_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
+                    writer.add_summary(f1_sum, global_step)
+                    em_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
+                    writer.add_summary(em_sum, global_step)
 
-                    metrics, summ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                                                   dev_eval_file, sess, "dev", dev_iterator)
+                    metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                                                   dev_eval_file, sess, dev_iterator)
+                    loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
+                    writer.add_summary(loss_sum, global_step)
+                    f1_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
+                    writer.add_summary(f1_sum, global_step)
+                    em_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/em".format("dev"), simple_value=metrics["exact_match"]), ])
+                    writer.add_summary(em_sum, global_step)
+                    writer.flush()
 
                     dev_f1 = metrics["f1"]
                     dev_em = metrics["exact_match"]
@@ -85,15 +101,12 @@ def train(config):
                         best_em = max(best_em, dev_em)
                         best_f1 = max(best_f1, dev_f1)
 
-                    for s in summ:
-                        writer.add_summary(s, global_step)
-                    writer.flush()
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
 
-def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, iterator):
+def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, is_answer=True):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
@@ -109,15 +122,9 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, data_type, itera
         answer_dict.update(answer_dict_)
         losses.append(loss)
     loss = np.mean(losses)
-    metrics = evaluate(eval_file, answer_dict)
+    metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
-    loss_sum = tf.Summary(value=[tf.Summary.Value(
-            tag="{}/loss".format(data_type), simple_value=metrics["loss"]), ])
-    f1_sum = tf.Summary(value=[tf.Summary.Value(
-            tag="{}/f1".format(data_type), simple_value=metrics["f1"]), ])
-    em_sum = tf.Summary(value=[tf.Summary.Value(
-            tag="{}/em".format(data_type), simple_value=metrics["exact_match"]), ])
-    return metrics, [loss_sum, f1_sum, em_sum]
+    return metrics
 
 
 def test(config):
@@ -129,67 +136,41 @@ def test(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
-    with open(config.word_dictionary, "r") as fh:
-        word_dictionary = json.load(fh)
 
-    id2word = {word_dictionary[w]: w for w in word_dictionary}
     total = meta["total"]
 
     graph = tf.Graph()
     print("Loading model...")
     with graph.as_default() as g:
-        test_batch = get_dataset(config.test_record_file, get_record_parser(
+        test_iterator = get_dataset(config.test_record_file, get_record_parser(
                 config, len(word_mat) + config.test_para_limit, is_test=True),
                                  config, is_test=True).make_one_shot_iterator()
-        test_next_element = test_batch.get_next()
         model = Model(config, word_mat, char_mat, trainable=False, graph=g)
-
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
         with tf.Session(config=sess_config) as sess:
-            sess.run(tf.global_variables_initializer())
-            saver = tf.train.Saver()
-            saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
-            if config.decay < 1.0:
-                sess.run(model.assign_vars)
-            answer_dict = {}
-            for step in tqdm(range(total // config.test_batch_size + 1)):
-                c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(test_next_element)
-                bsymbols, prev_probs = sess.run([model.symbols, model.prev_probs], feed_dict={model.c: c, model.q: q, model.a: a,
-                                                             model.ch: ch, model.qh: qh, model.ah: ah, model.y1: y1,
-                                                             model.y2: y2, model.qa_id: qa_id})
-                context = eval_file[str(qa_id[0])]["context"].replace(
-                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
-                context_tokens = word_tokenize(context)
-                bsymbols = zip(*bsymbols)
-                answers = []
-                for symbols, prev_prob in zip(bsymbols, prev_probs):
-                    symbols = list(symbols)
-                    if 3 in symbols:
-                        symbols = symbols[:symbols.index(3)]
-                    answer = u' '.join([id2word[symbol] if symbol in id2word
-                                        else context_tokens[symbol - len(id2word)] for symbol in symbols])
-                    # deal with special symbols like %, $ etc
-                    elim_pre_spas = [u' %', u" 's", u' ,']
-                    for s in elim_pre_spas:
-                        if s in answer:
-                            answer = s[1:].join(answer.split(s))
-                    elim_beh_spas = [u'$ ', u'\xa3 ', u'# ']
-                    for s in elim_beh_spas:
-                        if s in answer:
-                            answer = s[:-1].join(answer.split(s))
-                    elim_both_spas = [u' - ']
-                    for s in elim_both_spas:
-                        if s in answer:
-                            answer = s[1:-1].join(answer.split(s))
-                    answers.append((answer, str(-prev_prob)))
-                answer_dict_ = {str(qa_id[0]): answers}
-                answer_dict.update(answer_dict_)
-            # metrics = evaluate(eval_file, answer_dict)
-            with open("{}_b{}.json".format(config.answer_file, config.beam_size), "w") as fh:
-                json.dump(answer_dict, fh)
-            # print("D: Exact Match: {}, F1: {}".format(metrics['exact_match'], metrics['f1']))
+            for ckpt in range(1, 15):
+                checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
+                writer = tf.summary.FileWriter(config.log_dir)
+                sess.run(tf.global_variables_initializer())
+                saver = tf.train.Saver()
+                saver.restore(sess, checkpoint)
+                if config.decay < 1.0:
+                    sess.run(model.assign_vars)
+                global_step = sess.run(model.global_step)
+                metrics = evaluate_batch(config, model, total // config.test_batch_size + 1,
+                                         eval_file, sess, test_iterator)
+                loss_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                writer.add_summary(loss_sum, global_step)
+                f1_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
+                writer.add_summary(f1_sum, global_step)
+                em_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
+                writer.add_summary(em_sum, global_step)
+                writer.flush()
 
 
 def test_beam(config):
