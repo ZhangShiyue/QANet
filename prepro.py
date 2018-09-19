@@ -73,7 +73,7 @@ def process_file(filename, data_type, word_counter, char_counter):
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
-                        answer_tokens.append(word_tokenize(answer_text))
+                        answer_tokens.append(["--GO--"] + word_tokenize(answer_text)+ ["--EOS--"])
                         answer_chars.append([list(token) for token in answer_tokens[-1]])
                         max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
@@ -212,7 +212,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
     def filter_func(example, is_test=False):
         return len(example["context_tokens"]) > para_limit or \
                len(example["ques_tokens"]) > ques_limit or \
-               (example["y2s"][0] - example["y1s"][0]) > ans_limit - 1
+               len(example["ans_tokens"][0]) > ans_limit
 
     print("Processing {} examples...".format(data_type))
     writer = tf.python_io.TFRecordWriter(out_file)
@@ -228,7 +228,6 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
-        # context_voc = np.zeros([len(word2idx_dict) + para_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
@@ -236,12 +235,14 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         y1 = np.zeros([para_limit], dtype=np.float32)
         y2 = np.zeros([para_limit], dtype=np.float32)
 
+        start, end = example["y1s"][0], example["y2s"][0]
+        y1[start], y2[end] = 1.0, 1.0
+
         def _get_word(word, i):
             for each in (word, word.lower(), word.capitalize(), word.upper()):
                 if each in word2idx_dict:
                     return word2idx_dict[each]
-            return len(word2idx_dict) + i
-            # return 1
+            return 1
 
         def _get_char(char):
             if char in char2idx_dict:
@@ -251,14 +252,15 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
         for i, token in enumerate(example["context_tokens"]):
             wid = _get_word(token, i)
             context_idxs[i] = wid
-            # if wid < len(word2idx_dict):
-            #     context_voc[wid] = 1
 
         for i, token in enumerate(example["ques_tokens"]):
-            ques_idxs[i] = _get_word(token, i)
+            wid = _get_word(token, i)
+            ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
+                if wid == 1 and token in example["context_tokens"] else wid
 
         for i, token in enumerate(example["ans_tokens"][0]):
-            ans_idxs[i] = _get_word(token, i)
+            wid = _get_word(token, i)
+            ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):
@@ -278,12 +280,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
                     break
                 ans_char_idxs[i, j] = _get_char(char)
 
-        start, end = example["y1s"][-1], example["y2s"][-1]
-        y1[start], y2[end] = 1.0, 1.0
-
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
-            # "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),

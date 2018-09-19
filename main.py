@@ -60,8 +60,7 @@ def train(config):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, train_op = sess.run([model.loss, model.train_op], feed_dict={
                     model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
-                    model.y1: y1, model.y2: y2,
-                    model.qa_id: qa_id, model.dropout: config.dropout})
+                    model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])

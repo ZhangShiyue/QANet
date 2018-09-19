@@ -11,12 +11,12 @@ from main import train, test, test_beam, test_bleu, test_rerank, test_reranked, 
 
 flags = tf.flags
 
-home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+home = os.path.expanduser("/nlp/shiyue/QANet/")
 # home = os.path.expanduser("/playpen/home/shiyue/QANet/")
-train_file = os.path.join(home, "data", "squad", "train-v1.1.json")
-dev_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
-test_file = os.path.join(home, "data", "squad", "dev-v1.1.json")
-glove_word_file = os.path.join(home, "data", "glove", "glove.840B.300d.txt")
+train_file = os.path.join(home, "squad", "train-v1.1.json")
+dev_file = os.path.join(home, "squad", "dev-v1.1.json")
+test_file = os.path.join(home, "squad", "dev-v1.1.json")
+glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
 model_name = "FRC"
@@ -25,7 +25,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_gen_que1"
+target_dir = "data"
 log_dir = os.path.join(dir_name, "gen_event_listener1")
 save_dir = os.path.join(dir_name, "gen_model_listener1")
 answer_dir = os.path.join(dir_name, "gen_answer_listener1")
@@ -92,10 +92,10 @@ flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
-flags.DEFINE_integer("ques_limit", 52, "Limit length for question")
-flags.DEFINE_integer("ans_limit", 31, "Limit length for answers")
+flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
+flags.DEFINE_integer("ans_limit", 30, "Limit length for answers")
 flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
-flags.DEFINE_integer("test_ques_limit", 52, "Limit length for question in test file")
+flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
 flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
 flags.DEFINE_integer("word_count_limit", -1, "Min count for word")
