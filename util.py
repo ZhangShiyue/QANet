@@ -3,6 +3,7 @@ import re
 from collections import Counter
 import string
 import math
+from prepro import word_tokenize
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -117,6 +118,23 @@ def convert_tokens(eval_file, qa_id, pp1, pp2):
         end_idx = spans[p2][1]
         answer_dict[str(qid)] = context[start_idx: end_idx]
         remapped_dict[uuid] = context[start_idx: end_idx]
+    return answer_dict, remapped_dict
+
+
+def convert_tokens_g(eval_file, qa_id, symbols, id2word):
+    answer_dict = {}
+    remapped_dict = {}
+    for qid, syms in zip(qa_id, zip(*symbols)):
+        uuid = eval_file[str(qid)]["uuid"]
+        context = eval_file[str(qid)]["context"].replace(
+                    "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+        context_tokens = word_tokenize(context)
+        if 3 in syms:
+            syms = syms[:syms.index(3)]
+        answer = u' '.join([id2word[sym] if sym in id2word
+                            else context_tokens[sym - len(id2word)] for sym in syms])
+        answer_dict[str(qid)] = answer
+        remapped_dict[uuid] = answer
     return answer_dict, remapped_dict
 
 

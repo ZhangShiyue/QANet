@@ -4,7 +4,7 @@ from layers import initializer, regularizer, residual_block, highway, conv, mask
 
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="`", trainable=True, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
@@ -46,6 +46,14 @@ class Model(object):
                                         config.hidden, config.char_dim, config.glove_dim, config.num_heads)
                 self.loss = self.model.build_model(self.global_step)
                 self.byp1, self.byp2, self.bprobs = self.sample()
+            elif model_tpye == "QANetGenerator":
+                self.model = QANetGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
+                                            self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
+                                            self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
+                                            self.AL, self.CL, config.hidden, config.char_dim,
+                                            config.glove_dim, config.num_heads)
+                self.loss = self.model.build_model(self.global_step)
+                self.symbols, self.prev_probs = self.sample()
 
             total_params()
 
@@ -251,8 +259,7 @@ class QANetModel(object):
 class QANetGenerator(QANetModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
-                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim,
-                 word_dim, num_head, learning_rate, is_sample=False):
+                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head):
         QANetModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, char_limit, hidden,
                             char_dim, word_dim, num_head)
@@ -271,15 +278,15 @@ class QANetGenerator(QANetModel):
         # bidaf_attention
         attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        enc = self.model_encoder(attention_outputs)
+        self.model_encoder(attention_outputs)
         # answer generator
-        outputs, oups, attn_ws, p_gens = self.decode(enc)
+        outputs, oups, attn_ws, p_gens = self.decode()
         # compute loss
         return self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
 
-    def decode(self, enc):
+    def decode(self):
         with tf.variable_scope("Decoder_Layer"):
-            memory = tf.concat(enc[1:], axis=-1)
+            memory = tf.concat(self.enc[1:], axis=-1)
             oups = tf.split(self.a, [1] * self.AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
@@ -293,7 +300,7 @@ class QANetGenerator(QANetModel):
                     tf.get_variable_scope().reuse_variables()
 
                 attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=self.d, num_heads=1, memory=memory,
-                                                   mask=self.c_mask, bias=False, is_training=True, return_weights=True)
+                                                   mask=self.c_mask, bias=False, return_weights=True)
 
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
                 attn_ws.append(attn_w)
@@ -314,7 +321,7 @@ class QANetGenerator(QANetModel):
 
             return outputs, oups, attn_ws, p_gens
 
-    def samples(self, beam_size):
+    def sample(self, beam_size):
         with tf.variable_scope("Decoder_Layer", reuse=True):
             memory = tf.concat(self.enc[1:], axis=-1)
             oups = tf.split(self.a, [1] * self.AL, 1)
@@ -322,76 +329,86 @@ class QANetGenerator(QANetModel):
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
             state = (c, h)
             prev, attn_w, p_gen = None, None, None
-            prev_probs = [0.0]
+            prev_probs = tf.zeros((self.N, 1))
             symbols = []
             attn_ws = []
             p_gens = []
             for i, inp in enumerate(oups):
-                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [self.N, self.dw])
+                einp = tf.nn.embedding_lookup(self.word_mat, inp)
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
                         einp, prev_probs, index, prev_symbol = self._loop_function(beam_size, prev, attn_w, p_gen,
-                                                                                   prev_probs)
-                        h = tf.gather(h, index)  # update prev state
-                        state = tuple(tf.gather(s, index) for s in state)  # update prev state
+                                                                                   prev_probs, i)
+                        h = tf.gather_nd(h, index)  # update prev state
+                        state = tuple(tf.gather_nd(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
-                            symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                            symbols[j] = tf.gather_nd(symbol, index)  # update prev symbols
                         for j, attn_w in enumerate(attn_ws):
-                            attn_ws[j] = tf.gather(attn_w, index)  # update prev attn_ws
+                            attn_ws[j] = tf.gather_nd(attn_w, index)  # update prev attn_ws
                         for j, p_gen in enumerate(p_gens):
-                            p_gens[j] = tf.gather(p_gen, index)  # update prev p_gens
+                            p_gens[j] = tf.gather_nd(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
-                attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=self.d, num_heads=1, memory=memory,
-                                                   mask=self.c_mask, bias=False, is_training=False, return_weights=True)
-
-                attn_w = tf.reshape(attn_w, [-1, self.PL])
+                attn, attn_w = multihead_attention(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
+                                                   memory=memory, mask=self.c_mask, bias=False, return_weights=True)
+                attn_w = tf.reshape(attn_w, [self.N, -1, self.PL])
                 attn_ws.append(attn_w)
+
                 # update cell state
-                attn = tf.reshape(attn, [-1, self.d])
-                cinp = tf.concat([einp, attn], 1)
-                h, state = self.cell(cinp, state)
+                cinp = tf.concat([einp, attn], -1)
+                h, state = self.cell(tf.reshape(cinp, [-1, self.dw + self.d]),
+                                     tuple(tf.reshape(s, [-1, self.d]) for s in state))
+                h = tf.reshape(h, [self.N, -1, self.d])
+                state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state)
 
                 with tf.variable_scope("AttnOutputProjection"):
+                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 2 + self.dw])
                     # generation prob
-                    p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
+                    p_gen = tf.sigmoid(_linear([oinp], output_size=1, bias=True, scope="gen_prob"))
+                    p_gen = tf.reshape(p_gen, [self.N, -1, 1])
                     p_gens.append(p_gen)
                     # generation
-                    output = _linear([h] + [cinp], output_size=self.dw * 2, bias=False, scope="output")
+                    output = _linear([oinp], output_size=self.dw * 2, bias=False, scope="output")
                     output = tf.reshape(output, [-1, self.dw, 2])
                     output = tf.reduce_max(output, 2)  # maxout
+                    output = tf.reshape(output, [self.N, -1, self.dw])
 
                 prev = output
 
             # process the last symbol
-            einp, prev_probs, index, prev_symbol = self._loop_function(beam_size, prev, attn_w, p_gen, prev_probs)
+            einp, prev_probs, index, prev_symbol = self._loop_function(beam_size, prev, attn_w, p_gen, prev_probs, i)
             for j, symbol in enumerate(symbols):
-                symbols[j] = tf.gather(symbol, index)  # update prev symbols
+                symbols[j] = tf.gather_nd(symbol, index)  # update prev symbols
             symbols.append(prev_symbol)
 
             # output the final best result of beam search
+            index = tf.stack([tf.range(self.N), tf.zeros(self.N, dtype=tf.int32)], axis=-1)
             for k, symbol in enumerate(symbols):
-                symbols[k] = tf.gather(symbol, 0)
+                symbols[k] = tf.gather_nd(symbol, index)
 
             return symbols, prev_probs
 
-    def _loop_function(self, beam_size, prev, attn_w, p_gen, prev_probs):
-        bc = tf.tile(self.c, [self.N, 1])
-        batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
-        indices_c = tf.stack((batch_nums_c, bc), axis=2)
-        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NV])
-        logit = tf.matmul(prev, self.word_mat, transpose_b=True)
+    def _loop_function(self, beam_size, prev, attn_w, p_gen, prev_probs, i):
+        dim = 1 if i == 1 else beam_size
+        # scatter attention probs
+        bc = tf.tile(tf.expand_dims(self.c, 1), [1, dim, 1])   # batch_size * beam_size * PL
+        batch_nums_c = tf.tile(tf.reshape(tf.range(self.N), [self.N, 1, 1]), [1, dim, self.PL])
+        beam_size_c = tf.tile(tf.reshape(tf.range(dim), [1, dim, 1]), [self.N, 1, self.PL])
+        indices_c = tf.stack((batch_nums_c, beam_size_c, bc), axis=3)
+        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NV])
+        # combine generation probs and copy probs
+        logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
+        logit = tf.reshape(logit, [self.N, dim, -1])
         dist_g = tf.nn.softmax(logit)
         final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
-
         # beam search
-        prev = tf.nn.bias_add(tf.transpose(final_dist), prev_probs)  # num_symbols*BEAM_SIZE
-        prev = tf.transpose(prev)
-        prev = tf.expand_dims(tf.reshape(prev, [-1]), 0)  # 1*(BEAM_SIZE*num_symbols)
-        probs, prev_symbolb = tf.nn.top_k(prev, beam_size)
-        probs = tf.squeeze(probs, [0])  # BEAM_SIZE,
-        prev_symbolb = tf.squeeze(prev_symbolb, [0])  # BEAM_SIZE,
+        prev_probs = tf.expand_dims(prev_probs, -1)
+        prev = final_dist + prev_probs  # batch_size * dim * NV
+        prev = tf.reshape(prev, [self.N, -1])  # batch_size * (dim * NV)
+        probs, prev_symbolb = tf.nn.top_k(prev, beam_size)  # batch_size * beam_size
         index = prev_symbolb // self.NV
+        bindex = tf.tile(tf.expand_dims(tf.range(self.N), -1), [1, beam_size])
+        index = tf.stack((bindex, index), axis=2)
         prev_symbol = prev_symbolb % self.NV
 
         # Note that gradients will not propagate through the second parameter of
@@ -401,16 +418,14 @@ class QANetGenerator(QANetModel):
         return emb_prev, probs, index, prev_symbol
 
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens, global_step):
-        batch_size = ouputs[0].get_shape()[0].value
-        PL = self.c.get_shape()[1].value
-        batch_nums_c = tf.tile(tf.expand_dims(tf.range(batch_size), 1), [1, PL])
+        batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
         indices_c = tf.stack((batch_nums_c, self.c), axis=2)
-        batch_nums = tf.expand_dims(tf.range(batch_size), 1)
+        batch_nums = tf.expand_dims(tf.range(self.N), 1)
         weights = []
         crossents = []
         for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
-            dist_c = tf.scatter_nd(indices_c, attn_w, [batch_size, self.NV])
+            dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NV])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
             dist_g = tf.nn.softmax(logit)
             final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
@@ -427,4 +442,4 @@ class QANetGenerator(QANetModel):
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-        return tf.reduce_sum(log_perps) / tf.cast(batch_size, tf.float32)
+        return tf.reduce_sum(log_perps) / tf.cast(self.N, tf.float32)

@@ -11,7 +11,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from model import Model
-from util import get_record_parser, convert_tokens, evaluate, evaluate_bleu, get_batch_dataset, get_dataset
+from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, evaluate_bleu, get_batch_dataset, get_dataset
 from prepro import word_tokenize, save
 
 
@@ -26,7 +26,10 @@ def train(config):
         dev_eval_file = json.load(fh)
     with open(config.dev_meta, "r") as fh:
         meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
 
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
     parser = get_record_parser(config, len(word_mat) + config.para_limit)
@@ -37,7 +40,7 @@ def train(config):
         train_iterator = train_dataset.make_one_shot_iterator()
         dev_iterator = dev_dataset.make_one_shot_iterator()
 
-        model = Model(config, word_mat, char_mat, graph=g)
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -66,7 +69,7 @@ def train(config):
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
                     metrics = evaluate_batch(config, model, config.val_num_batches,
-                                             train_eval_file, sess, train_iterator)
+                                             train_eval_file, sess, train_iterator, id2word, model_tpye=config.model_tpye)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -78,7 +81,7 @@ def train(config):
                     writer.add_summary(em_sum, global_step)
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                                                   dev_eval_file, sess, dev_iterator)
+                                                   dev_eval_file, sess, dev_iterator, id2word, model_tpye=config.model_tpye)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -101,25 +104,32 @@ def train(config):
                         best_em = max(best_em, dev_em)
                         best_f1 = max(best_f1, dev_f1)
 
-                    filename = os.path.join(
-                            config.save_dir, "model_{}.ckpt".format(global_step))
-                    saver.save(sess, filename)
+                    # filename = os.path.join(
+                    #         config.save_dir, "model_{}.ckpt".format(global_step))
+                    # saver.save(sess, filename)
 
 
-def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, is_answer=True):
+def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel", is_answer=True):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
         c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
-        loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
-                                     feed_dict={model.c: c, model.q: q, model.a: a,
-                                                 model.ch: ch, model.qh: qh, model.ah: ah,
-                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
-        yp1 = map(lambda x: x[0], byp1)
-        yp2 = map(lambda x: x[0], byp2)
-        answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
-        answer_dict.update(answer_dict_)
+        if model_tpye == "QANetModel":
+            loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
+                                        feed_dict={model.c: c, model.q: q, model.a: a,
+                                                     model.ch: ch, model.qh: qh, model.ah: ah,
+                                                     model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            yp1 = map(lambda x: x[0], byp1)
+            yp2 = map(lambda x: x[0], byp2)
+            answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
+            answer_dict.update(answer_dict_)
+        elif model_tpye == "QANetGenerator":
+            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
+                                                     model.ch: ch, model.qh: qh, model.ah: ah,
+                                                     model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
+            answer_dict.update(answer_dict_)
         losses.append(loss)
     loss = np.mean(losses)
     metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
@@ -136,7 +146,10 @@ def test(config):
         eval_file = json.load(fh)
     with open(config.test_meta, "r") as fh:
         meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
 
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
     total = meta["total"]
 
     graph = tf.Graph()

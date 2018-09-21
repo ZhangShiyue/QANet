@@ -155,7 +155,7 @@ def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, c
         outputs = tf.nn.dropout(outputs, 1.0 - dropout)
         outputs, attention_weights = multihead_attention(outputs, num_filters, num_heads=num_heads,
                                       memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
-                                      mask=mask, is_training=is_training, bias=bias, dropout=dropout)
+                                      mask=mask, bias=bias, dropout=dropout)
         residual = layer_dropout(outputs, inputs, dropout * float(l) / L)
 
         # Feed-forward
@@ -176,7 +176,6 @@ def multihead_attention(queries, units, num_heads,
                         scope="Multi_Head_Attention",
                         reuse=None,
                         mask=None,
-                        is_training=True,
                         return_weights=False,
                         bias=True,
                         dropout=0.0):
@@ -197,7 +196,6 @@ def multihead_attention(queries, units, num_heads,
                                   seq_len=seq_len,
                                   causality=causality,
                                   mask=mask,
-                                  is_training=is_training,
                                   scope="dot_product_attention",
                                   reuse=reuse, dropout=dropout)
         return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3])), a
@@ -294,7 +292,6 @@ def dot_product_attention(q,
                           seq_len=None,
                           causality=False,
                           mask=None,
-                          is_training=True,
                           scope=None,
                           reuse=None,
                           dropout=0.0):
@@ -311,10 +308,7 @@ def dot_product_attention(q,
     """
     with tf.variable_scope(scope, default_name="dot_product_attention", reuse=reuse):
         # [batch, num_heads, query_length, memory_length]
-        if is_training:
-            logits = tf.matmul(q, k, transpose_b=True)
-        else:
-            logits = tf.expand_dims(tf.reduce_sum(tf.transpose(q, [0, 2, 1, 3]) * k, [-1]), 1)
+        logits = tf.matmul(q, k, transpose_b=True)
         if bias:
             b = tf.get_variable("bias",
                                 logits.shape[-1],
@@ -332,10 +326,7 @@ def dot_product_attention(q,
         weights = tf.nn.softmax(logits, name="attention_weights")
         # dropping out the attention links for each of the heads
         weights = tf.nn.dropout(weights, 1.0 - dropout)
-        if is_training:
-            res = tf.matmul(weights, v)
-        else:
-            res = tf.reduce_sum(tf.expand_dims(weights, [-1]) * tf.expand_dims(v, [0]), [-2])
+        res = tf.matmul(weights, v)
         return res, weights
 
 
