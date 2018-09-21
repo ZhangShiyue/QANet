@@ -32,7 +32,8 @@ def train(config):
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, len(word_mat) + config.para_limit)
+    parser = get_record_parser(config, config.ques_limit if config.is_answer else config.ans_limit,
+                               config.ans_limit if config.is_answer else config.ques_limit)
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -61,7 +62,7 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                    model.c: c, model.q: a, model.a: q, model.ch: ch, model.qh: ah, model.ah: qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -69,7 +70,8 @@ def train(config):
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
                     metrics = evaluate_batch(config, model, config.val_num_batches,
-                                             train_eval_file, sess, train_iterator, id2word, model_tpye=config.model_tpye)
+                                             train_eval_file, sess, train_iterator, id2word,
+                                             model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -81,7 +83,8 @@ def train(config):
                     writer.add_summary(em_sum, global_step)
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                                                   dev_eval_file, sess, dev_iterator, id2word, model_tpye=config.model_tpye)
+                                                   dev_eval_file, sess, dev_iterator, id2word,
+                                             model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -125,8 +128,8 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetGenerator":
-            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
-                                                     model.ch: ch, model.qh: qh, model.ah: ah,
+            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: a, model.a: q,
+                                                     model.ch: ch, model.qh: ah, model.ah: qh,
                                                      model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
@@ -156,8 +159,9 @@ def test(config):
     print("Loading model...")
     with graph.as_default() as g:
         test_iterator = get_dataset(config.test_record_file, get_record_parser(
-                config, len(word_mat) + config.test_para_limit, is_test=True),
-                                 config, is_test=True).make_one_shot_iterator()
+                config, config.test_ques_limit if config.is_answer else config.test_ans_limit,
+                config.test_ans_limit if config.is_answer else config.test_ques_limit, is_test=True),
+                                    config, is_test=True).make_one_shot_iterator()
         model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=False, graph=g)
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True

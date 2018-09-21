@@ -11,18 +11,15 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 
-def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
+def get_record_parser(config, ques_limit, ans_limit, is_test=False, is_rerank=False):
     def parse(example):
         para_limit = config.test_para_limit if is_test else config.para_limit
-        ques_limit = config.test_ques_limit if is_test else config.ques_limit
-        ans_limit = config.test_ans_limit if is_test else config.ans_limit
         char_limit = config.char_limit
 
         if is_rerank:
             features = tf.parse_single_example(example,
                                                features={
                                                    "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   # "context_voc": tf.FixedLenFeature([], tf.string),
                                                    "ques_idxs": tf.FixedLenFeature([], tf.string),
                                                    "ans_idxs": tf.FixedLenFeature([], tf.string),
                                                    "context_char_idxs": tf.FixedLenFeature([], tf.string),
@@ -37,7 +34,6 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
             features = tf.parse_single_example(example,
                                                features={
                                                    "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   # "context_voc": tf.FixedLenFeature([], tf.string),
                                                    "ques_idxs": tf.FixedLenFeature([], tf.string),
                                                    "ans_idxs": tf.FixedLenFeature([], tf.string),
                                                    "context_char_idxs": tf.FixedLenFeature([], tf.string),
@@ -50,8 +46,6 @@ def get_record_parser(config, voc_size, is_test=False, is_rerank=False):
 
         context_idxs = tf.reshape(tf.decode_raw(
                 features["context_idxs"], tf.int32), [para_limit])
-        # context_voc = tf.reshape(tf.decode_raw(
-        #     features["context_voc"], tf.int32), [voc_size])
         ques_idxs = tf.reshape(tf.decode_raw(
                 features["ques_idxs"], tf.int32), [ques_limit])
         ans_idxs = tf.reshape(tf.decode_raw(
