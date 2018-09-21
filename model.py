@@ -4,7 +4,7 @@ from layers import initializer, regularizer, residual_block, highway, conv, mask
 
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="`", trainable=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
