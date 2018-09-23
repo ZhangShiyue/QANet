@@ -358,3 +358,99 @@ class QANetGenerator(QANetModel):
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
         return log_perps
+
+
+class QANetRLGenerator(QANetGenerator):
+    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
+                 ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size, para_limit, ques_limit,
+                 ans_limit, char_limit, hidden, char_dim, word_dim, num_head, reward, sampled_answer, mixing_ratio):
+        QANetGenerator.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
+                                answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
+                                para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head)
+        self.reward = reward
+        self.loop_function_rl = self._loop_function_rl
+        self.sa = sampled_answer
+        self.lamda = mixing_ratio
+
+    def build_model(self, global_step):
+        # word, character embedding
+        c_emb, q_emb = self.input_embedding()
+        # input_encoder
+        c, q = self.input_encoder(c_emb, q_emb)
+        # bidaf_attention
+        attention_outputs = self.optimized_bidaf_attention(c, q)
+        # model_encoder
+        self.model_encoder(attention_outputs)
+        # compute loss
+        # ml
+        outputs, oups, attn_ws, p_gens = self.decode(self.a)
+        loss_ml = tf.reduce_mean(self._compute_loss(outputs, oups, attn_ws, p_gens, global_step))
+        # rl
+        outputs, oups, attn_ws, p_gens = self.decode(self.sa, reuse=True)
+        loss_rl = tf.reduce_mean(self._compute_loss(outputs, oups, attn_ws, p_gens, global_step) * self.reward)
+        loss = tf.cond(global_step < 20000, lambda: loss_ml, lambda: (1 - self.lamda) * loss_ml + self.lamda * loss_rl)
+        return loss
+
+    def sample_rl(self):
+        with tf.variable_scope("Decoder_Layer", reuse=True):
+            memory = tf.concat(self.enc[1:], axis=-1)
+            oups = tf.split(self.a, [1] * self.AL, 1)
+            h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
+            c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
+            state = (c, h)
+            prev, attn_w, p_gen = None, None, None
+            symbols = []
+            attn_ws = []
+            p_gens = []
+            for i, inp in enumerate(oups):
+                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [self.N, self.dw])
+                if prev is not None:
+                    with tf.variable_scope("loop_function", reuse=True):
+                        einp, prev_symbol = self.loop_function_rl(prev, attn_w, p_gen, i)
+                        symbols.append(prev_symbol)
+
+                attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=self.d, num_heads=1,
+                                                   memory=memory, mask=self.c_mask, bias=False, return_weights=True)
+                attn_w = tf.reshape(attn_w, [-1, self.PL])
+                attn = tf.reshape(attn, [-1, self.d])
+                attn_ws.append(attn_w)
+
+                # update cell state
+                cinp = tf.concat([einp, attn], -1)
+                h, state = self.cell(cinp, state)
+
+                with tf.variable_scope("AttnOutputProjection"):
+                    # generation prob
+                    p_gen = tf.sigmoid(_linear([h] + [cinp], output_size=1, bias=True, scope="gen_prob"))
+                    p_gens.append(p_gen)
+                    # generation
+                    output = _linear([h] + [cinp], output_size=self.dw * 2, bias=False, scope="output")
+                    output = tf.reshape(output, [-1, self.dw, 2])
+                    output = tf.reduce_max(output, 2)  # maxout
+                prev = output
+
+            # process the last symbol
+            einp, prev_symbol = self.loop_function_rl(prev, attn_w, p_gen, i)
+            symbols.append(prev_symbol)
+
+            return symbols
+
+    def _loop_function_rl(self, prev, attn_w, p_gen, i):
+        # scatter attention probs
+        batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
+        indices_c = tf.stack((batch_nums_c, self.c), axis=2)
+        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NV])
+
+        # combined probs
+        logit = tf.matmul(prev, self.word_mat, transpose_b=True)
+        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
+        # logit = mask_logits(logit, mask)
+        dist_g = tf.nn.softmax(logit)
+        final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
+
+        # multinomial sample
+        dist = tf.distributions.Categorical(probs=final_dist)
+        prev_symbol = dist.sample()
+        emb_prev = tf.nn.embedding_lookup(self.word_mat, prev_symbol)
+
+        return emb_prev, prev_symbol
