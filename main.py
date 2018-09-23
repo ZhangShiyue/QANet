@@ -32,8 +32,7 @@ def train(config):
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, config.ques_limit if config.is_answer else config.ans_limit,
-                               config.ans_limit if config.is_answer else config.ques_limit)
+    parser = get_record_parser(config, config.ques_limit, config.ans_limit)
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -41,7 +40,7 @@ def train(config):
         train_iterator = train_dataset.make_one_shot_iterator()
         dev_iterator = dev_dataset.make_one_shot_iterator()
 
-        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, graph=g)
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, is_answer=config.is_answer, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -62,7 +61,7 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                    model.c: c, model.q: a, model.a: q, model.ch: ch, model.qh: ah, model.ah: qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(

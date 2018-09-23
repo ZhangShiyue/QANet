@@ -4,7 +4,7 @@ from modules import QANetModel, QANetGenerator, QANetRLGenerator
 
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, is_answer=True, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
@@ -14,6 +14,8 @@ class Model(object):
             self.QL = config.ques_limit if trainable else config.test_ques_limit
             self.AL = config.ans_limit if trainable else config.test_ans_limit
             self.CL = config.char_limit
+            if not is_answer:
+                self.QL, self.AL = self.AL, self.QL
 
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
