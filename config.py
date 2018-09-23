@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
-from main import train, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
+from main import train, train_rl, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
 
 flags = tf.flags
 
@@ -25,9 +25,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data"
-log_dir = os.path.join(dir_name, "event_que_gen")
-save_dir = os.path.join(dir_name, "model_que_gen")
-answer_dir = os.path.join(dir_name, "answer_que_gen")
+log_dir = os.path.join(dir_name, "event_ans_gen_rl")
+save_dir = os.path.join(dir_name, "model_ans_gen_rl")
+answer_dir = os.path.join(dir_name, "answer_ans_gen_rl")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -57,8 +57,8 @@ if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
-flags.DEFINE_string("model_tpye", "QANetGenerator", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
+flags.DEFINE_string("model_tpye", "QANetRLGenerator", "Model type")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
 flags.DEFINE_string("log_dir", log_dir, "Directory for tf event")
 flags.DEFINE_string("save_dir", save_dir, "Directory for saving model")
@@ -136,6 +136,8 @@ def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
+    if config.mode == "train_rl":
+        train_rl(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "debug":

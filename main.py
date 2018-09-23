@@ -61,7 +61,8 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c, model.q: a, model.a: q, model.ch: ch, model.qh: ah, model.ah: qh,
+                    model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
+                    model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -128,8 +129,7 @@ def train_rl(config):
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, config.ques_limit if config.is_answer else config.ans_limit,
-                               config.ans_limit if config.is_answer else config.ques_limit)
+    parser = get_record_parser(config, config.ques_limit, config.ans_limit)
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -159,12 +159,13 @@ def train_rl(config):
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 if global_step < 20000:
                     loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                        model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
+                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 else:
-
                     symbols, symbols_rl = sess.run([model.symbols, model.symbols_rl], feed_dict={
-                        model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
+                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
                     reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True)
                     sa = np.array(zip(*symbols_rl))
@@ -236,9 +237,12 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetGenerator":
-            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
-                                                     model.ch: ch, model.qh: qh, model.ah: ah,
-                                                     model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            loss, symbols = sess.run([model.loss, model.symbols],
+                                     feed_dict={model.c: c, model.q: q if config.is_answer else a,
+                                                model.a: a if config.is_answer else q,
+                                                model.ch: ch, model.qh: qh if config.is_answer else ah,
+                                                model.ah: ah if config.is_answer else qh,
+                                                model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetRLGenerator":
