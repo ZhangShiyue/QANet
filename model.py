@@ -47,28 +47,28 @@ class Model(object):
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
             if model_tpye == "QANetModel":
-                self.model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
+                model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
                                         self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.CL,
                                         config.hidden, config.char_dim, config.glove_dim, config.num_heads)
-                self.loss = self.model.build_model(self.global_step)
-                self.byp1, self.byp2, self.bprobs = self.model.sample(config.beam_size)
+                self.loss = model.build_model(self.global_step)
+                self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
             elif model_tpye == "QANetGenerator":
-                self.model = QANetGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
+                model = QANetGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
                                             self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
                                             self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
                                             self.AL, self.CL, config.hidden, config.char_dim,
                                             config.glove_dim, config.num_heads)
-                self.loss = self.model.build_model(self.global_step)
-                self.symbols, self.prev_probs = self.model.sample(config.beam_size)
+                self.loss = model.build_model(self.global_step)
+                self.symbols, self.prev_probs = model.sample(config.beam_size)
             elif model_tpye == "QANetRLGenerator":
-                self.model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
+                model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
                                               self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
                                               self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
                                               self.AL, self.CL, config.hidden, config.char_dim, config.glove_dim,
                                               config.num_heads, self.reward, self.sa, config.mixing_ratio)
-                self.loss = self.model.build_model(self.global_step)
-                self.symbols, self.prev_probs = self.model.sample(config.beam_size)
-                self.symbols_rl = self.model.sample_rl()
+                self.loss = model.build_model(self.global_step)
+                self.symbols, self.prev_probs = model.sample(config.beam_size)
+                self.symbols_rl = model.sample_rl()
 
             total_params()
 
