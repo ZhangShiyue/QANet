@@ -3,6 +3,7 @@ import re
 from collections import Counter
 import string
 import math
+import numpy as np
 from prepro import word_tokenize
 
 '''
@@ -121,7 +122,7 @@ def convert_tokens_g(eval_file, qa_id, symbols, id2word):
     for qid, syms in zip(qa_id, zip(*symbols)):
         uuid = eval_file[str(qid)]["uuid"]
         context = eval_file[str(qid)]["context"].replace(
-                    "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
         context_tokens = word_tokenize(context)
         if 3 in syms:
             syms = syms[:syms.index(3)]
@@ -132,7 +133,7 @@ def convert_tokens_g(eval_file, qa_id, symbols, id2word):
     return answer_dict, remapped_dict
 
 
-def evaluate(eval_file, answer_dict, is_answer=False):
+def evaluate(eval_file, answer_dict, is_answer=True):
     f1 = exact_match = total = 0
     for key, value in answer_dict.items():
         total += 1
@@ -145,6 +146,27 @@ def evaluate(eval_file, answer_dict, is_answer=False):
     exact_match = 100.0 * exact_match / total
     f1 = 100.0 * f1 / total
     return {'exact_match': exact_match, 'f1': f1}
+
+
+def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True):
+    rewards = []
+    for qid, syms, syms_rl in zip(qa_id, zip(*symbols), zip(*symbols_rl)):
+        ground_truths = eval_file[str(qid)]["questions"] if not is_answer else eval_file[str(qid)]["answers"]
+        context = eval_file[str(qid)]["context"].replace(
+                "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+        context_tokens = word_tokenize(context)
+        if 3 in syms:
+            syms = syms[:syms.index(3)]
+        answer = u' '.join([id2word[sym] if sym in id2word
+                            else context_tokens[sym - len(id2word)] for sym in syms])
+        f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
+        if 3 in syms_rl:
+            syms_rl = syms_rl[:syms_rl.index(3)]
+        answer_rl = u' '.join([id2word[sym_rl] if sym_rl in id2word
+                               else context_tokens[sym_rl - len(id2word)] for sym_rl in syms_rl])
+        f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
+        rewards.append(f1_rl - f1)
+    return np.array(rewards)
 
 
 def normalize_answer(s):

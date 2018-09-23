@@ -11,8 +11,8 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from model import Model
-from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, evaluate_bleu, get_batch_dataset, get_dataset
-from prepro import word_tokenize, save
+from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, \
+    evaluate_bleu, get_batch_dataset, get_dataset, evaluate_rl
 
 
 def train(config):
@@ -62,7 +62,7 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c, model.q: a, model.a: q, model.ch: ch, model.qh: ah, model.ah: qh,
+                    model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -128,8 +128,8 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetGenerator":
-            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: a, model.a: q,
-                                                     model.ch: ch, model.qh: ah, model.ah: qh,
+            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
+                                                     model.ch: ch, model.qh: qh, model.ah: ah,
                                                      model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)

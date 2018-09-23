@@ -251,7 +251,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
 
         for i, token in enumerate(example["context_tokens"]):
             wid = _get_word(token, i)
-            context_idxs[i] = wid
+            context_idxs[i] = len(word2idx_dict) + i if wid == 1 else wid
 
         for i, token in enumerate(example["ques_tokens"]):
             wid = _get_word(token, i)
