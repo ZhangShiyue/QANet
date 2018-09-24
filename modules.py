@@ -183,6 +183,7 @@ class QANetGenerator(QANetModel):
         self.cell = tf.nn.rnn_cell.LSTMCell(hidden)
         self.AL = ans_limit
         self.NV = num_words
+        self.NVP = self.NV + self.PL
         self.loop_function = self._loop_function
 
     def build_model(self, global_step):
@@ -197,9 +198,9 @@ class QANetGenerator(QANetModel):
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss
-        batch_loss = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
+        batch_loss, logits = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
         loss = tf.reduce_mean(batch_loss)
-        return loss
+        return loss, logits
 
     def decode(self, a, reuse=None):
         with tf.variable_scope("Decoder_Layer", reuse=reuse):
@@ -312,26 +313,29 @@ class QANetGenerator(QANetModel):
         batch_nums_c = tf.tile(tf.reshape(tf.range(self.N), [self.N, 1, 1]), [1, dim, self.PL])
         beam_size_c = tf.tile(tf.reshape(tf.range(dim), [1, dim, 1]), [self.N, 1, self.PL])
         indices_c = tf.stack((batch_nums_c, beam_size_c, bc), axis=3)
-        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NV])
+        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NVP])
         # combine generation probs and copy probs
         logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
-        mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-        logit = mask_logits(logit, mask)
+        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
+        # logit = mask_logits(logit, mask)
         logit = tf.reshape(logit, [self.N, dim, -1])
         dist_g = tf.nn.softmax(logit)
+        plus_dist_g = tf.zeros([self.N, dim, self.PL])
+        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
         # beam search
         prev_probs = tf.expand_dims(prev_probs, -1)
         prev = final_dist + prev_probs  # batch_size * dim * NV
         prev = tf.reshape(prev, [self.N, -1])  # batch_size * (dim * NV)
         probs, prev_symbolb = tf.nn.top_k(prev, beam_size)  # batch_size * beam_size
-        index = prev_symbolb // self.NV
+        index = prev_symbolb // self.NVP
         bindex = tf.tile(tf.expand_dims(tf.range(self.N), -1), [1, beam_size])
         index = tf.stack((bindex, index), axis=2)
-        prev_symbol = prev_symbolb % self.NV
+        prev_symbol = prev_symbolb % self.NVP
 
-        # embedding_lookup.
-        emb_prev = tf.nn.embedding_lookup(self.word_mat, prev_symbol)
+        # embedding_lookup
+        plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
+        emb_prev = tf.nn.embedding_lookup(tf.concat([self.word_mat, plus_word_mat], axis=0), prev_symbol)
 
         return emb_prev, probs, index, prev_symbol
 
@@ -341,13 +345,17 @@ class QANetGenerator(QANetModel):
         batch_nums = tf.expand_dims(tf.range(self.N), 1)
         weights = []
         crossents = []
+        logits = []
         for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
-            dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NV])
+            dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-            logit = mask_logits(logit, mask)
+            # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
+            # logit = mask_logits(logit, mask)
+            logits.append(logit)
             dist_g = tf.nn.softmax(logit)
+            plus_dist_g = tf.zeros([self.N, self.PL])
+            dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
             final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
             # get loss
             indices = tf.concat((batch_nums, oup), axis=1)
@@ -363,7 +371,7 @@ class QANetGenerator(QANetModel):
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-        return log_perps
+        return log_perps, logits
 
 
 class QANetRLGenerator(QANetGenerator):

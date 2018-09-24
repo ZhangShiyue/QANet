@@ -38,11 +38,11 @@ class Model(object):
                                                   (self.N, self.AL), name="sampled_answer")
 
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
-            original_word_mat = tf.get_variable("word_mat",
-                                                initializer=tf.constant(word_mat, dtype=tf.float32), trainable=False)
-            additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]), [self.PL, 1])
-            self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
-            self.num_words = len(word_mat) + self.PL
+            self.word_mat = tf.get_variable("word_mat",
+                                            initializer=tf.constant(word_mat, dtype=tf.float32), trainable=False)
+            # additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]), [self.PL, 1])
+            # self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
+            self.num_words = len(word_mat)
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
@@ -58,7 +58,7 @@ class Model(object):
                                             self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
                                             self.AL, self.CL, config.hidden, config.char_dim,
                                             config.glove_dim, config.num_heads)
-                self.loss = model.build_model(self.global_step)
+                self.loss, self.probs = model.build_model(self.global_step)
                 self.symbols, self.prev_probs = model.sample(config.beam_size)
             elif model_tpye == "QANetRLGenerator":
                 model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
