@@ -11,7 +11,8 @@ from main import train, train_rl, test, test_beam, test_bleu, test_rerank, test_
 
 flags = tf.flags
 
-home = os.path.expanduser("/nlp/shiyue/QANet/")
+# home = os.path.expanduser("/nlp/shiyue/QANet/")
+home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
@@ -24,10 +25,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data"
-log_dir = os.path.join(dir_name, "event_que_gen1")
-save_dir = os.path.join(dir_name, "model_que_gen1")
-answer_dir = os.path.join(dir_name, "answer_que_gen1")
+target_dir = "data1"
+log_dir = os.path.join(dir_name, "event_que_gen2")
+save_dir = os.path.join(dir_name, "model_que_gen2")
+answer_dir = os.path.join(dir_name, "answer_que_gen2")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")

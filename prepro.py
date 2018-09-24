@@ -83,7 +83,14 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    example = {"context_tokens": context_tokens, "context_chars": context_chars,
+                    context_tokens_tmp = []
+                    for i, token in enumerate(context_tokens):
+                        if i == y1s[0]:
+                            context_tokens_tmp.append("--GO--")
+                        context_tokens_tmp.append(token)
+                        if i == y2s[0]:
+                            context_tokens_tmp.append("--EOS--")
+                    example = {"context_tokens": context_tokens_tmp, "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
                                "y1s": y1s, "y2s": y2s, "id": total}
