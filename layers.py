@@ -123,6 +123,29 @@ def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, memory=None
             return outputs
 
 
+def transformer_block(inputs, num_blocks, memory=None, mask=None, causality=False,
+                   num_filters=128, input_projection=False, num_heads=8,
+                   seq_len=None, scope="trans_block",
+                   reuse=None, bias=True, dropout=0.0, return_attention_weights=False):
+    with tf.variable_scope(scope, reuse=reuse):
+        if input_projection:
+            inputs = conv(inputs, num_filters, name="input_projection", reuse=reuse)
+        outputs = inputs
+        sublayer = 0
+        total_sublayers = 2 * num_blocks
+        attention_weights = None
+        for i in range(num_blocks):
+            outputs = add_timing_signal_1d(outputs)
+            outputs, sublayer, attention_weights = self_attention_block_trans(outputs, num_filters, seq_len, memory=memory,
+                                                     mask=mask, causality=causality, num_heads=num_heads,
+                                                     scope="self_attention_layers%d" % i, reuse=reuse,
+                                                     bias=bias, dropout=dropout, sublayers=(sublayer, total_sublayers))
+        if return_attention_weights:
+            return outputs, attention_weights
+        else:
+            return outputs
+
+
 def conv_block(inputs, num_conv_layers, kernel_size, num_filters,
                seq_len=None, scope="conv_block", is_training=True,
                reuse=None, bias=True, dropout=0.0, sublayers=(1, 1)):
@@ -165,6 +188,29 @@ def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, c
         outputs = conv(outputs, num_filters, True, tf.nn.relu, name="FFN_1", reuse=reuse)
         outputs = conv(outputs, num_filters, True, None, name="FFN_2", reuse=reuse)
         outputs = layer_dropout(outputs, residual, dropout * float(l) / L)
+
+        return outputs, l, attention_weights
+
+
+def self_attention_block_trans(inputs, num_filters, seq_len, memory=None, mask=None, causality=False, num_heads=8,
+                         scope="self_attention_ffn", reuse=None,
+                         bias=True, dropout=0.0, sublayers=(1, 1)):
+    with tf.variable_scope(scope, reuse=reuse):
+        l, L = sublayers
+        # Self attention
+        l += 1
+        outputs = tf.nn.dropout(inputs, 1.0 - dropout)
+        outputs, attention_weights = multihead_attention(outputs, num_filters, num_heads=num_heads,
+                                      memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
+                                      mask=mask, bias=bias, dropout=dropout)
+        residual = norm_fn(outputs + inputs, scope="layer_norm_1", reuse=reuse)
+
+        # Feed-forward
+        l += 1
+        outputs = tf.nn.dropout(residual, 1.0 - dropout)
+        outputs = conv(outputs, num_filters, True, tf.nn.relu, name="FFN_1", reuse=reuse)
+        outputs = conv(outputs, num_filters, True, None, name="FFN_2", reuse=reuse)
+        outputs = norm_fn(outputs + inputs, scope="layer_norm_2", reuse=reuse)
 
         return outputs, l, attention_weights
 

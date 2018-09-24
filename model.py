@@ -1,6 +1,7 @@
 import tensorflow as tf
 from layers import initializer, regularizer, total_params
-from modules import QANetModel, QANetGenerator, QANetRLGenerator
+from qanet import QANetModel, QANetGenerator, QANetRLGenerator
+from transformer import TransformerModel
 
 
 class Model(object):
@@ -69,6 +70,12 @@ class Model(object):
                 self.loss = model.build_model(self.global_step)
                 self.symbols, self.prev_probs = model.sample(config.beam_size)
                 self.symbols_rl = model.sample_rl()
+            elif model_tpye == "TransformerModel":
+                model = TransformerModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
+                                        self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.CL,
+                                        config.hidden, config.char_dim, config.glove_dim, config.num_heads)
+                self.loss = model.build_model(self.global_step)
+                self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
 
             total_params()
 
