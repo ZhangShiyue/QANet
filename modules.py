@@ -198,9 +198,9 @@ class QANetGenerator(QANetModel):
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss
-        batch_loss, logits = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
+        batch_loss = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step)
         loss = tf.reduce_mean(batch_loss)
-        return loss, logits
+        return loss
 
     def decode(self, a, reuse=None):
         with tf.variable_scope("Decoder_Layer", reuse=reuse):
@@ -371,7 +371,7 @@ class QANetGenerator(QANetModel):
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-        return log_perps, logits
+        return log_perps
 
 
 class QANetRLGenerator(QANetGenerator):
@@ -454,13 +454,15 @@ class QANetRLGenerator(QANetGenerator):
         # scatter attention probs
         batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
         indices_c = tf.stack((batch_nums_c, self.c), axis=2)
-        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NV])
+        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
 
         # combined probs
         logit = tf.matmul(prev, self.word_mat, transpose_b=True)
-        mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-        logit = mask_logits(logit, mask)
+        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
+        # logit = mask_logits(logit, mask)
         dist_g = tf.nn.softmax(logit)
+        plus_dist_g = tf.zeros([self.N, self.PL])
+        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
 
         # multinomial sample

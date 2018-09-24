@@ -60,7 +60,7 @@ def train(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, probs, _ = sess.run([model.loss, model.probs, model.train_op], feed_dict={
+                loss, _ = sess.run([model.loss, model.train_op], feed_dict={
                     model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                     model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})

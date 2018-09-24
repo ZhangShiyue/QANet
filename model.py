@@ -58,7 +58,7 @@ class Model(object):
                                             self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
                                             self.AL, self.CL, config.hidden, config.char_dim,
                                             config.glove_dim, config.num_heads)
-                self.loss, self.probs = model.build_model(self.global_step)
+                self.loss = model.build_model(self.global_step)
                 self.symbols, self.prev_probs = model.sample(config.beam_size)
             elif model_tpye == "QANetRLGenerator":
                 model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
@@ -90,8 +90,8 @@ class Model(object):
                             self.assign_vars.append(tf.assign(var, v))
 
             if trainable:
-                self.lr = tf.minimum(config.learning_rate,
-                                     0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1))
+                self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
+                            0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)), lambda: config.rl_learning_rate)
                 self.opt = tf.train.AdamOptimizer(learning_rate=self.lr, beta1=0.8, beta2=0.999, epsilon=1e-7)
                 grads = self.opt.compute_gradients(self.loss)
                 gradients, variables = zip(*grads)
