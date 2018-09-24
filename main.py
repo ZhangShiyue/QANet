@@ -64,7 +64,6 @@ def train(config):
                     model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                     model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
-                print np.max(probs, axis=-1)
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])

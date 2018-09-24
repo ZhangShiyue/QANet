@@ -25,9 +25,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data"
-log_dir = os.path.join(dir_name, "event_que_gen")
-save_dir = os.path.join(dir_name, "model_que_gen")
-answer_dir = os.path.join(dir_name, "answer_que_gen")
+log_dir = os.path.join(dir_name, "event_que_gen1")
+save_dir = os.path.join(dir_name, "model_que_gen1")
+answer_dir = os.path.join(dir_name, "answer_que_gen1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -117,7 +117,7 @@ flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the m
 flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9995, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
-flags.DEFINE_float("learning_rate", 0.0001, "Learning rate")
+flags.DEFINE_float("learning_rate", 0.001, "Learning rate")
 flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 3e-7, "L2 norm scale")
 flags.DEFINE_integer("hidden", 128, "Hidden size")
