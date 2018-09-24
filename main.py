@@ -137,7 +137,7 @@ def train_rl(config):
         train_iterator = train_dataset.make_one_shot_iterator()
         dev_iterator = dev_dataset.make_one_shot_iterator()
 
-        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, graph=g)
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, is_answer=config.is_answer, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -157,7 +157,7 @@ def train_rl(config):
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                if global_step < 20000:
+                if global_step < config.pre_step:
                     loss, _ = sess.run([model.loss, model.train_op], feed_dict={
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
@@ -167,10 +167,11 @@ def train_rl(config):
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
-                    reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True)
+                    reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=config.is_answer)
                     sa = np.array(zip(*symbols_rl))
                     loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                        model.c: c, model.q: q, model.a: a, model.ch: ch, model.qh: qh, model.ah: ah,
+                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
+                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout,
                         model.sa: sa, model.reward: reward})
                 if global_step % config.period == 0:
@@ -246,9 +247,12 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetRLGenerator":
-            loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.c: c, model.q: q, model.a: a,
-                                                     model.ch: ch, model.qh: qh, model.ah: ah,
-                                                     model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            loss, symbols = sess.run([model.loss, model.symbols],
+                                     feed_dict={model.c: c, model.q: q if config.is_answer else a,
+                                                model.a: a if config.is_answer else q,
+                                                model.ch: ch, model.qh: qh if config.is_answer else ah,
+                                                model.ah: ah if config.is_answer else qh,
+                                                model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
         losses.append(loss)

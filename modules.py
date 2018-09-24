@@ -368,8 +368,8 @@ class QANetGenerator(QANetModel):
 
 class QANetRLGenerator(QANetGenerator):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
-                 ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size, para_limit, ques_limit,
-                 ans_limit, char_limit, hidden, char_dim, word_dim, num_head, reward, sampled_answer, mixing_ratio):
+                 ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim, num_head, reward, sampled_answer, mixing_ratio, pre_step):
         QANetGenerator.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                                 answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
                                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head)
@@ -377,6 +377,7 @@ class QANetRLGenerator(QANetGenerator):
         self.loop_function_rl = self._loop_function_rl
         self.sa = sampled_answer
         self.lamda = mixing_ratio
+        self.pre_step = pre_step
 
     def build_model(self, global_step):
         # word, character embedding
@@ -394,7 +395,7 @@ class QANetRLGenerator(QANetGenerator):
         # rl
         outputs, oups, attn_ws, p_gens = self.decode(self.sa, reuse=True)
         loss_rl = tf.reduce_mean(self._compute_loss(outputs, oups, attn_ws, p_gens, global_step) * self.reward)
-        loss = tf.cond(global_step < 20000, lambda: loss_ml, lambda: (1 - self.lamda) * loss_ml + self.lamda * loss_rl)
+        loss = tf.cond(global_step < self.pre_step, lambda: loss_ml, lambda: (1 - self.lamda) * loss_ml + self.lamda * loss_rl)
         return loss
 
     def sample_rl(self):
@@ -449,8 +450,8 @@ class QANetRLGenerator(QANetGenerator):
 
         # combined probs
         logit = tf.matmul(prev, self.word_mat, transpose_b=True)
-        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-        # logit = mask_logits(logit, mask)
+        mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
+        logit = mask_logits(logit, mask)
         dist_g = tf.nn.softmax(logit)
         final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
 
