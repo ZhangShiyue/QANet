@@ -304,7 +304,7 @@ class QANetGenerator(QANetModel):
             # output the final best result of beam search
             index = tf.stack([tf.range(self.N), tf.zeros(self.N, dtype=tf.int32)], axis=-1)
             for k, symbol in enumerate(symbols):
-                symbols.append(tf.gather_nd(symbol, index))
+                symbols[k] = tf.gather_nd(symbol, index)
 
             return symbols, prev_probs
 
@@ -322,8 +322,8 @@ class QANetGenerator(QANetModel):
         # logit = mask_logits(logit, mask)
         logit = tf.reshape(logit, [self.N, dim, -1])
         dist_g = tf.nn.softmax(logit)
-        plus_dist_g = tf.zeros([self.N, dim, self.PL])
-        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
+        # plus_dist_g = tf.zeros([self.N, dim, self.PL])
+        # dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
         # beam search
         prev_probs = tf.expand_dims(prev_probs, -1)
@@ -336,8 +336,8 @@ class QANetGenerator(QANetModel):
         prev_symbol = prev_symbolb % self.NVP
 
         # embedding_lookup
-        plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
-        emb_prev = tf.nn.embedding_lookup(tf.concat([self.word_mat, plus_word_mat], axis=0), prev_symbol)
+        # plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
+        emb_prev = tf.nn.embedding_lookup(self.word_mat, prev_symbol)
 
         return emb_prev, probs, index, prev_symbol
 
@@ -347,28 +347,24 @@ class QANetGenerator(QANetModel):
         batch_nums = tf.expand_dims(tf.range(self.N), 1)
         weights = []
         crossents = []
-        logits = []
         for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
             dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
             # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
             # logit = mask_logits(logit, mask)
-            logits.append(logit)
             dist_g = tf.nn.softmax(logit)
-            plus_dist_g = tf.zeros([self.N, self.PL])
-            dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
+            # plus_dist_g = tf.zeros([self.N, self.PL])
+            # dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
             final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
             # get loss
             indices = tf.concat((batch_nums, oup), axis=1)
             gold_probs = tf.gather_nd(final_dist, indices)
-            # crossent1 = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
             target = tf.reshape(oup, [-1])
-            # crossent0 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
-            # crossent = tf.cond(global_step < 10000,
-            #                    lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
-            #                    lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
-            crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
+            crossent = tf.cond(global_step < 10000,
+                               lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
+                               lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
+            # crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
             weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)

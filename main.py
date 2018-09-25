@@ -238,15 +238,12 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator":
-            loss, symbols, prev_probs = sess.run([model.loss, model.symbols, model.prev_probs],
+            loss, symbols = sess.run([model.loss, model.symbols],
                                      feed_dict={model.c: c, model.q: q if config.is_answer else a,
                                                 model.a: a if config.is_answer else q,
                                                 model.ch: ch, model.qh: qh if config.is_answer else ah,
                                                 model.ah: ah if config.is_answer else qh,
                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
-            print symbols
-            print prev_probs
-            exit()
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
         losses.append(loss)
