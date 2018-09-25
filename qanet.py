@@ -173,7 +173,8 @@ class QANetModel(object):
 class QANetGenerator(QANetModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
-                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head):
+                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head,
+                 model_encoder_layers):
         QANetModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, char_limit, hidden,
                             char_dim, word_dim, num_head)
@@ -185,6 +186,7 @@ class QANetGenerator(QANetModel):
         self.NV = num_words
         self.NVP = self.NV + self.PL
         self.loop_function = self._loop_function
+        self.model_encoder_layers = model_encoder_layers
 
     def build_model(self, global_step):
         # word, character embedding
@@ -194,7 +196,7 @@ class QANetGenerator(QANetModel):
         # bidaf_attention
         attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        self.model_encoder(attention_outputs)
+        self.model_encoder(attention_outputs, num_layers=self.model_encoder_layers)
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss

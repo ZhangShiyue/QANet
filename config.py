@@ -26,9 +26,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data"
-log_dir = os.path.join(dir_name, "event_ans_pre_trans")
-save_dir = os.path.join(dir_name, "model_ans_pre_trans")
-answer_dir = os.path.join(dir_name, "answer_ans_pre_trans")
+log_dir = os.path.join(dir_name, "event_que_gen3")
+save_dir = os.path.join(dir_name, "model_que_gen3")
+answer_dir = os.path.join(dir_name, "answer_que_gen3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -58,8 +58,8 @@ if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
-flags.DEFINE_string("model_tpye", "TransformerModel", "Model type")
-flags.DEFINE_boolean("is_answer", True, "Output answer or question")
+flags.DEFINE_string("model_tpye", "QANetGenerator", "Model type")
+flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
 flags.DEFINE_string("log_dir", log_dir, "Directory for tf event")
 flags.DEFINE_string("save_dir", save_dir, "Directory for saving model")
@@ -125,6 +125,9 @@ flags.DEFINE_float("l2_norm", 3e-7, "L2 norm scale")
 flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
+
+flags.DEFINE_integer("model_encoder_layers", 1, "The number of model encoder")
+
 
 # Extensions (Uncomment corresponding code in download.sh to download the required data)
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
