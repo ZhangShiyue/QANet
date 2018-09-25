@@ -91,8 +91,6 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                             context_tokens_tmp.append(token)
                             if i == y2s[0]:
                                 context_tokens_tmp.append("--EOS--")
-                        y1s[0] += 1
-                        y2s[0] += 1
                     example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens, "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
