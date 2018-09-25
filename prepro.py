@@ -33,7 +33,7 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter, char_counter):
+def process_file(filename, data_type, word_counter, char_counter, answer_notation=False):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
@@ -83,14 +83,17 @@ def process_file(filename, data_type, word_counter, char_counter):
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    context_tokens_tmp = []
-                    for i, token in enumerate(context_tokens):
-                        if i == y1s[0]:
-                            context_tokens_tmp.append("--GO--")
-                        context_tokens_tmp.append(token)
-                        if i == y2s[0]:
-                            context_tokens_tmp.append("--EOS--")
-                    example = {"context_tokens": context_tokens_tmp, "context_chars": context_chars,
+                    if answer_notation:
+                        context_tokens_tmp = []
+                        for i, token in enumerate(context_tokens):
+                            if i == y1s[0]:
+                                context_tokens_tmp.append("--GO--")
+                            context_tokens_tmp.append(token)
+                            if i == y2s[0]:
+                                context_tokens_tmp.append("--EOS--")
+                        y1s[0] += 1
+                        y2s[0] += 1
+                    example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens, "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
                                "y1s": y1s, "y2s": y2s, "id": total}
@@ -315,11 +318,11 @@ def save(filename, obj, message=None):
 def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(
-            config.train_file, "train", word_counter, char_counter)
+            config.train_file, "train", word_counter, char_counter, answer_notation=True)
     dev_examples, dev_eval = process_file(
-            config.dev_file, "dev", word_counter, char_counter)
+            config.dev_file, "dev", word_counter, char_counter, answer_notation=True)
     test_examples, test_eval = process_file(
-            config.test_file, "test", word_counter, char_counter)
+            config.test_file, "test", word_counter, char_counter, answer_notation=True)
 
     word_emb_file = config.fasttext_file if config.fasttext else config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None

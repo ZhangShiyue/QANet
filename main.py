@@ -238,12 +238,15 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator":
-            loss, symbols = sess.run([model.loss, model.symbols],
+            loss, symbols, prev_probs = sess.run([model.loss, model.symbols, model.prev_probs],
                                      feed_dict={model.c: c, model.q: q if config.is_answer else a,
                                                 model.a: a if config.is_answer else q,
                                                 model.ch: ch, model.qh: qh if config.is_answer else ah,
                                                 model.ah: ah if config.is_answer else qh,
                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            print symbols
+            print prev_probs
+            exit()
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)
         losses.append(loss)
@@ -272,15 +275,15 @@ def test(config):
     print("Loading model...")
     with graph.as_default() as g:
         test_iterator = get_dataset(config.test_record_file, get_record_parser(
-                config, config.test_ques_limit if config.is_answer else config.test_ans_limit,
-                config.test_ans_limit if config.is_answer else config.test_ques_limit, is_test=True),
+                config, config.test_ques_limit, config.test_ans_limit, is_test=True),
                                     config, is_test=True).make_one_shot_iterator()
-        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=False, graph=g)
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=False,
+                      is_answer=config.is_answer, graph=g)
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
         with tf.Session(config=sess_config) as sess:
-            for ckpt in range(1, 9):
+            for ckpt in range(11, 12):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
                 writer = tf.summary.FileWriter(config.log_dir)
                 sess.run(tf.global_variables_initializer())
@@ -290,7 +293,8 @@ def test(config):
                     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
                 metrics = evaluate_batch(config, model, total // config.test_batch_size + 1,
-                                         eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye)
+                                         eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
+                                         is_answer=config.is_answer)
                 loss_sum = tf.Summary(value=[tf.Summary.Value(
                                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
                 writer.add_summary(loss_sum, global_step)

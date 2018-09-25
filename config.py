@@ -26,9 +26,9 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data"
-log_dir = os.path.join(dir_name, "event_que_gen3")
-save_dir = os.path.join(dir_name, "model_que_gen3")
-answer_dir = os.path.join(dir_name, "answer_que_gen3")
+log_dir = os.path.join(dir_name, "event_que_gen1")
+save_dir = os.path.join(dir_name, "model_que_gen1")
+answer_dir = os.path.join(dir_name, "answer_que_gen1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -108,8 +108,8 @@ flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 32, "Batch size")
-flags.DEFINE_integer("test_batch_size", 32, "Batch size")
-flags.DEFINE_integer("beam_size", 1, "Beam size")
+flags.DEFINE_integer("test_batch_size", 1, "Batch size")
+flags.DEFINE_integer("beam_size", 5, "Beam size")
 flags.DEFINE_integer("num_steps", 150000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 10000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
@@ -126,7 +126,7 @@ flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
-flags.DEFINE_integer("model_encoder_layers", 1, "The number of model encoder")
+flags.DEFINE_integer("model_encoder_layers", 3, "The number of model encoder")
 
 
 # Extensions (Uncomment corresponding code in download.sh to download the required data)

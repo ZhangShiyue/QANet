@@ -304,7 +304,7 @@ class QANetGenerator(QANetModel):
             # output the final best result of beam search
             index = tf.stack([tf.range(self.N), tf.zeros(self.N, dtype=tf.int32)], axis=-1)
             for k, symbol in enumerate(symbols):
-                symbols[k] = tf.gather_nd(symbol, index)
+                symbols.append(tf.gather_nd(symbol, index))
 
             return symbols, prev_probs
 
@@ -327,8 +327,8 @@ class QANetGenerator(QANetModel):
         final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
         # beam search
         prev_probs = tf.expand_dims(prev_probs, -1)
-        prev = final_dist + prev_probs  # batch_size * dim * NV
-        prev = tf.reshape(prev, [self.N, -1])  # batch_size * (dim * NV)
+        prev = final_dist + prev_probs  # batch_size * dim * NVP
+        prev = tf.reshape(prev, [self.N, -1])  # batch_size * (dim * NVP)
         probs, prev_symbolb = tf.nn.top_k(prev, beam_size)  # batch_size * beam_size
         index = prev_symbolb // self.NVP
         bindex = tf.tile(tf.expand_dims(tf.range(self.N), -1), [1, beam_size])
