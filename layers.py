@@ -93,7 +93,7 @@ def highway(x, size=None, activation=None,
 
 def layer_dropout(inputs, residual, dropout):
     pred = tf.random_uniform([]) < dropout
-    return tf.cond(pred, lambda: residual, lambda: (tf.nn.dropout(inputs, 1.0 - dropout) + residual) * 0.5)
+    return tf.cond(pred, lambda: residual, lambda: (tf.nn.dropout(inputs, 1.0 - dropout) + residual))
 
 
 def residual_block(inputs, num_blocks, num_conv_layers, kernel_size, memory=None, mask=None, causality=False,
