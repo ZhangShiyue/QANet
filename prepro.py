@@ -97,7 +97,8 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                                "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
-                        "context": context, "spans": spans, "questions": [ques], "answers": answer_texts, "uuid": qa["id"]}
+                        "context_tokens": context_tokens_tmp if answer_notation else context_tokens,
+                        "spans": spans, "questions": [ques], "answers": answer_texts, "uuid": qa["id"]}
         random.shuffle(examples)
         print("{} questions in total".format(len(examples)))
         print("max_c, max_q, max_a: {}, {}, {}".format(max_c, max_q, max_a))

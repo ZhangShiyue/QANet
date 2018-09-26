@@ -318,8 +318,8 @@ class QANetGenerator(QANetModel):
         dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NVP])
         # combine generation probs and copy probs
         logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
-        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-        # logit = mask_logits(logit, mask)
+        mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
+        logit = mask_logits(logit, mask)
         logit = tf.reshape(logit, [self.N, dim, -1])
         dist_g = tf.nn.softmax(logit)
         # plus_dist_g = tf.zeros([self.N, dim, self.PL])
@@ -351,8 +351,8 @@ class QANetGenerator(QANetModel):
             # combine copy and generation probs
             dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-            # logit = mask_logits(logit, mask)
+            mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
+            logit = mask_logits(logit, mask)
             dist_g = tf.nn.softmax(logit)
             # plus_dist_g = tf.zeros([self.N, self.PL])
             # dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)

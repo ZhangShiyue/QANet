@@ -69,6 +69,10 @@ def train(config):
                             tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
+                    filename = os.path.join(
+                            config.save_dir, "model_{}.ckpt".format(global_step))
+                    saver.save(sess, filename)
+
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
@@ -107,9 +111,6 @@ def train(config):
                         best_em = max(best_em, dev_em)
                         best_f1 = max(best_f1, dev_f1)
 
-                    filename = os.path.join(
-                            config.save_dir, "model_{}.ckpt".format(global_step))
-                    saver.save(sess, filename)
 
 
 def train_rl(config):
@@ -179,6 +180,10 @@ def train_rl(config):
                             tag="model/loss", simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
+                    filename = os.path.join(
+                            config.save_dir, "model_{}.ckpt".format(global_step))
+                    saver.save(sess, filename)
+
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
@@ -216,10 +221,6 @@ def train_rl(config):
                         patience = 0
                         best_em = max(best_em, dev_em)
                         best_f1 = max(best_f1, dev_f1)
-
-                    filename = os.path.join(
-                            config.save_dir, "model_{}.ckpt".format(global_step))
-                    saver.save(sess, filename)
 
 
 def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel", is_answer=True):
