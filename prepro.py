@@ -320,11 +320,11 @@ def save(filename, obj, message=None):
 def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(
-            config.train_file, "train", word_counter, char_counter, answer_notation=False)
+            config.train_file, "train", word_counter, char_counter, answer_notation=True)
     dev_examples, dev_eval = process_file(
-            config.dev_file, "dev", word_counter, char_counter, answer_notation=False)
+            config.dev_file, "dev", word_counter, char_counter, answer_notation=True)
     test_examples, test_eval = process_file(
-            config.test_file, "test", word_counter, char_counter, answer_notation=False)
+            config.test_file, "test", word_counter, char_counter, answer_notation=True)
 
     word_emb_file = config.fasttext_file if config.fasttext else config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None
@@ -337,11 +337,11 @@ def prepro(config):
             char_counter, "char", emb_file=char_emb_file, size=char_emb_size, vec_size=char_emb_dim)
 
     build_features(config, train_examples, "train",
-                   config.train_record_file, word2idx_dict, char2idx_dict)
+                   config.train_record_file, word2idx_dict, char2idx_dict, answer_notation=True)
     dev_meta = build_features(config, dev_examples, "dev",
-                              config.dev_record_file, word2idx_dict, char2idx_dict)
+                              config.dev_record_file, word2idx_dict, char2idx_dict, answer_notation=True)
     test_meta = build_features(config, test_examples, "test",
-                               config.test_record_file, word2idx_dict, char2idx_dict, is_test=True)
+                               config.test_record_file, word2idx_dict, char2idx_dict, is_test=True, answer_notation=True)
 
     save(config.word_emb_file, word_emb_mat, message="word embedding")
     save(config.char_emb_file, char_emb_mat, message="char embedding")
