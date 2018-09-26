@@ -25,10 +25,10 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data1"
-log_dir = os.path.join(dir_name, "sevent_que_gen")
-save_dir = os.path.join(dir_name, "smodel_que_gen")
-answer_dir = os.path.join(dir_name, "sanswer_que_gen")
+target_dir = "data2"
+log_dir = os.path.join(dir_name, "sevent_ans_gen")
+save_dir = os.path.join(dir_name, "smodel_ans_gen")
+answer_dir = os.path.join(dir_name, "sanswer_ans_gen")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -59,7 +59,7 @@ if not os.path.exists(answer_dir):
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("model_tpye", "QANetGenerator", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
 flags.DEFINE_string("log_dir", log_dir, "Directory for tf event")
 flags.DEFINE_string("save_dir", save_dir, "Directory for saving model")
