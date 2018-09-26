@@ -6,7 +6,8 @@ from layers import initializer, regularizer, residual_block, highway, conv, mask
 class QANetModel(object):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit,
-                 char_limit, hidden, char_dim, word_dim, num_head):
+                 char_limit, hidden, char_dim, word_dim, num_head, model_encoder_layers,
+                 model_encoder_blocks, model_encoder_convs, input_encoder_convs):
         self.c = context
         self.c_mask = context_mask
         self.ch = context_char
@@ -28,15 +29,22 @@ class QANetModel(object):
         self.dw = word_dim
         self.nh = num_head
 
+        self.model_encoder_layers = model_encoder_layers
+        self.model_encoder_blocks = model_encoder_blocks
+        self.model_encoder_convs = model_encoder_convs
+        self.input_encoder_convs = input_encoder_convs
+
+
     def build_model(self, global_step):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
         # input_encoder
-        c, q = self.input_encoder(c_emb, q_emb)
+        c, q = self.input_encoder(c_emb, q_emb, num_conv_layers=self.input_encoder_convs)
         # bidaf_attention
         attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        self.model_encoder(attention_outputs)
+        self.model_encoder(attention_outputs, num_layers=self.model_encoder_layers,
+                           num_conv_layers=self.model_encoder_convs, num_blocks=self.model_encoder_blocks)
         # span start and end prediction
         self.output()
         # compute loss
@@ -174,10 +182,11 @@ class QANetGenerator(QANetModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
                  para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head,
-                 model_encoder_layers):
+                 model_encoder_layers, model_encoder_blocks, model_encoder_convs, input_encoder_convs):
         QANetModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, char_limit, hidden,
-                            char_dim, word_dim, num_head)
+                            char_dim, word_dim, num_head, model_encoder_layers, model_encoder_blocks,
+                            model_encoder_convs, input_encoder_convs)
         self.a = answer
         self.a_mask = answer_mask
         self.ah = ans_char
@@ -186,17 +195,17 @@ class QANetGenerator(QANetModel):
         self.NV = num_words
         self.NVP = self.NV + self.PL
         self.loop_function = self._loop_function
-        self.model_encoder_layers = model_encoder_layers
 
     def build_model(self, global_step):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
         # input_encoder
-        c, q = self.input_encoder(c_emb, q_emb)
+        c, q = self.input_encoder(c_emb, q_emb, num_conv_layers=self.input_encoder_convs)
         # bidaf_attention
         attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        self.model_encoder(attention_outputs, num_layers=self.model_encoder_layers)
+        self.model_encoder(attention_outputs, num_layers=self.model_encoder_layers,
+                           num_conv_layers=self.model_encoder_convs, num_blocks=self.model_encoder_blocks)
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss
