@@ -212,7 +212,7 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
     return context_idxs, context_char_idxs, ques_idxs, ques_char_idxs
 
 
-def build_features(config, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False):
+def build_features(config, examples, data_type, out_file, word2idx_dict, char2idx_dict, is_test=False, answer_notation=False):
     para_limit = config.test_para_limit if is_test else config.para_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
     ans_limit = config.test_ans_limit if is_test else config.ans_limit
@@ -269,7 +269,10 @@ def build_features(config, examples, data_type, out_file, word2idx_dict, char2id
 
         for i, token in enumerate(example["ans_tokens"][0]):
             wid = _get_word(token, i)
-            ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
+            if answer_notation:
+                ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
+            else:
+                ans_idxs[i] = len(word2idx_dict) + start + i - 1 if wid == 1 else wid
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):
@@ -317,11 +320,11 @@ def save(filename, obj, message=None):
 def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(
-            config.train_file, "train", word_counter, char_counter, answer_notation=True)
+            config.train_file, "train", word_counter, char_counter, answer_notation=False)
     dev_examples, dev_eval = process_file(
-            config.dev_file, "dev", word_counter, char_counter, answer_notation=True)
+            config.dev_file, "dev", word_counter, char_counter, answer_notation=False)
     test_examples, test_eval = process_file(
-            config.test_file, "test", word_counter, char_counter, answer_notation=True)
+            config.test_file, "test", word_counter, char_counter, answer_notation=False)
 
     word_emb_file = config.fasttext_file if config.fasttext else config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None
