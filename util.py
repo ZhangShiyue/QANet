@@ -292,14 +292,20 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
     return (bleu, precisions, bp, ratio, translation_length, reference_length)
 
 
-def evaluate_bleu(eval_file, answer_dict):
+def evaluate_bleu(eval_file, answer_dict, is_answer=True):
     reference_corpus = []
     translation_corpus = []
     for key, value in answer_dict.items():
-        ground_truth = eval_file[key]["questions"][0]
+        ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
         prediction = value
         prediction_tokens = normalize_answer(prediction).split()
-        ground_truth_tokens = normalize_answer(ground_truth).split()
+        ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
         translation_corpus.append(prediction_tokens)
         reference_corpus.append(ground_truth_tokens)
-    return reference_corpus, translation_corpus
+    return compute_bleu(reference_corpus, translation_corpus)
+
+
+if __name__ == '__main__':
+    a = [["hello", ",", "i", "love", "you"]]
+    b = [[["hello", ",", "i", "love", "you", "!"]]]
+    print compute_bleu(b, a)

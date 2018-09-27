@@ -73,7 +73,7 @@ def train(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    metrics = evaluate_batch(config, model, config.val_num_batches,
+                    metrics, bleus = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -86,7 +86,7 @@ def train(config):
                             tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
                     writer.add_summary(em_sum, global_step)
 
-                    metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                    metrics, bleus = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                                    dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -250,8 +250,9 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
         losses.append(loss)
     loss = np.mean(losses)
     metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
+    bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
-    return metrics
+    return metrics, bleus
 
 
 def test(config):
@@ -281,27 +282,30 @@ def test(config):
         sess_config.gpu_options.allow_growth = True
 
         with tf.Session(config=sess_config) as sess:
-            for ckpt in range(1, 7):
+            writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
+            for ckpt in range(1, config.num_steps / 10000 + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
-                writer = tf.summary.FileWriter(config.log_dir)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
                 saver.restore(sess, checkpoint)
                 if config.decay < 1.0:
                     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
-                metrics = evaluate_batch(config, model, total // config.test_batch_size + 1,
+                metrics, bleus = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer)
                 loss_sum = tf.Summary(value=[tf.Summary.Value(
-                                tag="{}/loss{}".format("test", config.beam_size), simple_value=metrics["loss"]), ])
+                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
                 writer.add_summary(loss_sum, global_step)
                 f1_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/f1{}".format("test", config.beam_size), simple_value=metrics["f1"]), ])
+                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
                 writer.add_summary(f1_sum, global_step)
                 em_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/em{}".format("test", config.beam_size), simple_value=metrics["exact_match"]), ])
+                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
                 writer.add_summary(em_sum, global_step)
+                bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                writer.add_summary(bleu_sum, global_step)
                 writer.flush()
 
 
