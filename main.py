@@ -281,7 +281,7 @@ def test(config):
         sess_config.gpu_options.allow_growth = True
 
         with tf.Session(config=sess_config) as sess:
-            for ckpt in range(11, 12):
+            for ckpt in range(1, 7):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
                 writer = tf.summary.FileWriter(config.log_dir)
                 sess.run(tf.global_variables_initializer())
@@ -294,13 +294,13 @@ def test(config):
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer)
                 loss_sum = tf.Summary(value=[tf.Summary.Value(
-                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                                tag="{}/loss{}".format("test", config.beam_size), simple_value=metrics["loss"]), ])
                 writer.add_summary(loss_sum, global_step)
                 f1_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
+                        tag="{}/f1{}".format("test", config.beam_size), simple_value=metrics["f1"]), ])
                 writer.add_summary(f1_sum, global_step)
                 em_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
+                        tag="{}/em{}".format("test", config.beam_size), simple_value=metrics["exact_match"]), ])
                 writer.add_summary(em_sum, global_step)
                 writer.flush()
 
