@@ -5,6 +5,7 @@ import string
 import math
 import numpy as np
 from prepro import word_tokenize
+from meteor import Meteor
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -361,6 +362,18 @@ def evaluate_rouge_L(eval_file, answer_dict, is_answer=True):
         prediction_tokens = normalize_answer(prediction).split()
         ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
         score = compute_rouge_L(prediction_tokens, ground_truth_tokens)
+        scores.append(score)
+    return np.mean(scores)
+
+def evaluate_meteor(eval_file, answer_dict, is_answer=True):
+    meteor = Meteor()
+    scores = []
+    for key, value in answer_dict.items():
+        ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
+        prediction = value
+        prediction = normalize_answer(prediction)
+        ground_truths = [normalize_answer(ground_truth) for ground_truth in ground_truths]
+        score = meteor.compute_score(prediction, ground_truths)
         scores.append(score)
     return np.mean(scores)
 

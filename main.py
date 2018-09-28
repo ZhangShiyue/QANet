@@ -12,7 +12,7 @@ https://github.com/HKUST-KnowComp/R-Net
 
 from model import Model
 from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, \
-    evaluate_bleu, evaluate_rouge_L, get_batch_dataset, get_dataset, evaluate_rl
+    evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, evaluate_rl
 
 
 def train(config):
@@ -73,7 +73,7 @@ def train(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    metrics, bleus = evaluate_batch(config, model, config.val_num_batches,
+                    metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -86,7 +86,7 @@ def train(config):
                             tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
                     writer.add_summary(em_sum, global_step)
 
-                    metrics, bleus = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                    metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                                    dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -223,7 +223,7 @@ def train_rl(config):
                         best_f1 = max(best_f1, dev_f1)
 
 
-def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel", is_answer=True):
+def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel", is_answer=True, is_test=False):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
@@ -250,10 +250,14 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
         losses.append(loss)
     loss = np.mean(losses)
     metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
-    bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
-    rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
-    return metrics, bleus, rougeL
+    if is_test:
+        bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
+        rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
+        # meteor = evaluate_meteor(eval_file, answer_dict, is_answer=is_answer)
+        return metrics, bleus, rougeL
+    else:
+        return metrics
 
 
 def test(config):
@@ -294,7 +298,7 @@ def test(config):
                 global_step = sess.run(model.global_step)
                 metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
-                                         is_answer=config.is_answer)
+                                         is_answer=config.is_answer, is_test=True)
                 # loss_sum = tf.Summary(value=[tf.Summary.Value(
                 #                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
                 # writer.add_summary(loss_sum, global_step)
