@@ -184,7 +184,6 @@ def train_rl(config):
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
-
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
@@ -290,7 +289,7 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(1, config.num_steps / 10000 + 1):
+            for ckpt in range(6, config.num_steps / 10000 + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
@@ -316,6 +315,9 @@ def test(config):
                 rougeL_sum = tf.Summary(value=[tf.Summary.Value(
                         tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
                 writer.add_summary(rougeL_sum, global_step)
+                # meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
+                # writer.add_summary(meteor_sum, global_step)
                 writer.flush()
 
 

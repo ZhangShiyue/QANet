@@ -168,8 +168,8 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
             answer = normalize_answer(answer).split()
             answer_rl = normalize_answer(answer_rl).split()
             ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
-            bleu = compute_bleu([ground_truths], [answer])[0] * 100
-            bleu_rl = compute_bleu([ground_truths], [answer_rl])[0] * 100
+            bleu = compute_bleu([ground_truths], [answer])[0]
+            bleu_rl = compute_bleu([ground_truths], [answer_rl])[0]
             rewards.append(bleu_rl - bleu)
     return np.array(rewards)
 
