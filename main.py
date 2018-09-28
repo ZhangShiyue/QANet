@@ -12,7 +12,7 @@ https://github.com/HKUST-KnowComp/R-Net
 
 from model import Model
 from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, \
-    evaluate_bleu, get_batch_dataset, get_dataset, evaluate_rl
+    evaluate_bleu, evaluate_rouge_L, get_batch_dataset, get_dataset, evaluate_rl
 
 
 def train(config):
@@ -251,8 +251,9 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     loss = np.mean(losses)
     metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
     bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
+    rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
-    return metrics, bleus
+    return metrics, bleus, rougeL
 
 
 def test(config):
@@ -291,21 +292,24 @@ def test(config):
                 if config.decay < 1.0:
                     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
-                metrics, bleus = evaluate_batch(config, model, total // config.test_batch_size + 1,
+                metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer)
-                loss_sum = tf.Summary(value=[tf.Summary.Value(
-                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
-                writer.add_summary(loss_sum, global_step)
-                f1_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
-                writer.add_summary(f1_sum, global_step)
-                em_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
-                writer.add_summary(em_sum, global_step)
-                bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
-                writer.add_summary(bleu_sum, global_step)
+                # loss_sum = tf.Summary(value=[tf.Summary.Value(
+                #                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                # writer.add_summary(loss_sum, global_step)
+                # f1_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
+                # writer.add_summary(f1_sum, global_step)
+                # em_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
+                # writer.add_summary(em_sum, global_step)
+                # bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                # writer.add_summary(bleu_sum, global_step)
+                rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
+                writer.add_summary(rougeL_sum, global_step)
                 writer.flush()
 
 
