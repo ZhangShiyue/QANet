@@ -147,7 +147,7 @@ def evaluate(eval_file, answer_dict, is_answer=True):
     return {'exact_match': exact_match, 'f1': f1}
 
 
-def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True):
+def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, metric="f1"):
     rewards = []
     for qid, syms, syms_rl in zip(qa_id, zip(*symbols), zip(*symbols_rl)):
         ground_truths = eval_file[str(qid)]["questions"] if not is_answer else eval_file[str(qid)]["answers"]
@@ -156,13 +156,21 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True):
             syms = syms[:syms.index(3)]
         answer = u' '.join([id2word[sym] if sym in id2word
                             else context_tokens[sym - len(id2word)] for sym in syms])
-        f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
         if 3 in syms_rl:
             syms_rl = syms_rl[:syms_rl.index(3)]
         answer_rl = u' '.join([id2word[sym_rl] if sym_rl in id2word
                                else context_tokens[sym_rl - len(id2word)] for sym_rl in syms_rl])
-        f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
-        rewards.append(f1_rl - f1)
+        if metric == "f1":
+            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
+            f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
+            rewards.append(f1_rl - f1)
+        elif metric == "bleu":
+            answer = normalize_answer(answer).split()
+            answer_rl = normalize_answer(answer_rl).split()
+            ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+            bleu = compute_bleu([ground_truths], [answer])[0] * 100
+            bleu_rl = compute_bleu([ground_truths], [answer_rl])[0] * 100
+            rewards.append(bleu_rl - bleu)
     return np.array(rewards)
 
 
@@ -284,7 +292,7 @@ def compute_bleu(reference_corpus, translation_corpus, max_order=4,
     if ratio > 1.0:
         bp = 1.
     else:
-        bp = math.exp(1 - 1. / ratio)
+        bp = math.exp(1 - 1. / (ratio + 1e-12))
 
     bleu = geo_mean * bp
 
