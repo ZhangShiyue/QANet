@@ -223,7 +223,8 @@ def train_rl(config):
                         best_f1 = max(best_f1, dev_f1)
 
 
-def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel", is_answer=True, is_test=False):
+def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel",
+                   is_answer=True, is_test=False):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
@@ -299,18 +300,18 @@ def test(config):
                 metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer, is_test=True)
-                # loss_sum = tf.Summary(value=[tf.Summary.Value(
-                #                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
-                # writer.add_summary(loss_sum, global_step)
-                # f1_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
-                # writer.add_summary(f1_sum, global_step)
-                # em_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
-                # writer.add_summary(em_sum, global_step)
-                # bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
-                # writer.add_summary(bleu_sum, global_step)
+                loss_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                writer.add_summary(loss_sum, global_step)
+                f1_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
+                writer.add_summary(f1_sum, global_step)
+                em_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
+                writer.add_summary(em_sum, global_step)
+                bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                writer.add_summary(bleu_sum, global_step)
                 rougeL_sum = tf.Summary(value=[tf.Summary.Value(
                         tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
                 writer.add_summary(rougeL_sum, global_step)

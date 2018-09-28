@@ -70,10 +70,12 @@ class Model(object):
                                      tf.log(tf.cast(self.global_step, tf.float32) + 1))
             elif model_tpye == "QANetRLGenerator":
                 model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
-                                              self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
-                                              self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
-                                              self.AL, self.CL, config.hidden, config.char_dim, config.glove_dim,
-                                              config.num_heads, self.reward, self.sa, config.mixing_ratio, config.pre_step)
+                                         self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
+                                         self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
+                                         self.AL, self.CL, config.hidden, config.char_dim, config.glove_dim,
+                                         config.num_heads, config.model_encoder_layers, config.model_encoder_blocks,
+                                         config.model_encoder_convs, config.input_encoder_convs, self.reward,
+                                         self.sa, config.mixing_ratio, config.pre_step)
                 self.loss = model.build_model(self.global_step)
                 self.symbols, self.prev_probs = model.sample(config.beam_size)
                 self.symbols_rl = model.sample_rl()

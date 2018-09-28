@@ -385,10 +385,12 @@ class QANetGenerator(QANetModel):
 class QANetRLGenerator(QANetGenerator):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
                  ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size, para_limit, ques_limit, ans_limit,
-                 char_limit, hidden, char_dim, word_dim, num_head, reward, sampled_answer, mixing_ratio, pre_step):
+                 char_limit, hidden, char_dim, word_dim, num_head, model_encoder_layers, model_encoder_blocks,
+                 model_encoder_convs, input_encoder_convs, reward, sampled_answer, mixing_ratio, pre_step):
         QANetGenerator.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                                 answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
-                                para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head)
+                                para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head,
+                                model_encoder_layers, model_encoder_blocks, model_encoder_convs, input_encoder_convs)
         self.reward = reward
         self.loop_function_rl = self._loop_function_rl
         self.sa = sampled_answer
@@ -399,11 +401,12 @@ class QANetRLGenerator(QANetGenerator):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
         # input_encoder
-        c, q = self.input_encoder(c_emb, q_emb)
+        c, q = self.input_encoder(c_emb, q_emb, num_conv_layers=self.input_encoder_convs)
         # bidaf_attention
         attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        self.model_encoder(attention_outputs)
+        self.model_encoder(attention_outputs, num_layers=self.model_encoder_layers,
+                           num_conv_layers=self.model_encoder_convs, num_blocks=self.model_encoder_blocks)
         # compute loss
         # ml
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
@@ -466,11 +469,11 @@ class QANetRLGenerator(QANetGenerator):
 
         # combined probs
         logit = tf.matmul(prev, self.word_mat, transpose_b=True)
-        # mask = tf.concat([tf.ones([self.NV - self.PL]), tf.zeros([self.PL])], axis=-1)
-        # logit = mask_logits(logit, mask)
+        mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
+        logit = mask_logits(logit, mask)
         dist_g = tf.nn.softmax(logit)
-        plus_dist_g = tf.zeros([self.N, self.PL])
-        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
+        # plus_dist_g = tf.zeros([self.N, self.PL])
+        # dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
 
         # multinomial sample
