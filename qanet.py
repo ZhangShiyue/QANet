@@ -315,7 +315,7 @@ class QANetGenerator(QANetModel):
             for k, symbol in enumerate(symbols):
                 symbols[k] = tf.gather_nd(symbol, index)
 
-            return symbols, prev_probs
+            return symbols
 
     def _loop_function(self, beam_size, prev, attn_w, p_gen, prev_probs, i):
         dim = 1 if i == 1 else beam_size

@@ -416,16 +416,11 @@ def test_reranked(config):
 
 
 def tmp(config):
-    with open(config.test_eval_file, "r") as fh:
-        eval_file = json.load(fh)
-    with open(config.beam_search_file, "r") as fh:
-        beam_search_file = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
 
-    for qid in beam_search_file:
-        print qid
-        for ans, _, _, _ in beam_search_file[qid]:
-            if ans in eval_file[qid]["answers"]:
-                print ans.encode("utf-8"), "*"
-            else:
-                print ans.encode("utf-8")
-        print
+    print len(word_dictionary)
+    ws = []
+    for w in word_dictionary:
+        ws.append(w.lower())
+    print len(set(ws))

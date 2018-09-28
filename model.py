@@ -77,7 +77,7 @@ class Model(object):
                                          config.model_encoder_convs, config.input_encoder_convs, self.reward,
                                          self.sa, config.mixing_ratio, config.pre_step)
                 self.loss = model.build_model(self.global_step)
-                self.symbols, self.prev_probs = model.sample(config.beam_size)
+                self.symbols = model.sample(config.beam_size) if config.baseline_type == "beam" else model.sample_rl()
                 self.symbols_rl = model.sample_rl()
                 self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
                             0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)), lambda: config.rl_learning_rate)
