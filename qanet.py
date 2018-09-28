@@ -50,7 +50,8 @@ class QANetModel(object):
         # compute loss
         losses = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits1, labels=self.y1)
         losses2 = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits2, labels=self.y2)
-        return tf.reduce_mean(losses + losses2)
+        batch_loss = losses + losses2
+        return tf.reduce_mean(batch_loss), batch_loss
 
     def sample(self, beam_size):
         outer = tf.matmul(tf.expand_dims(tf.nn.softmax(self.logits1), axis=2),

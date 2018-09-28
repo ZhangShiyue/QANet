@@ -53,7 +53,7 @@ class Model(object):
                                    config.hidden, config.char_dim, config.glove_dim, config.num_heads,
                                    config.model_encoder_layers, config.model_encoder_blocks,
                                    config.model_encoder_convs, config.input_encoder_convs)
-                self.loss = model.build_model(self.global_step)
+                self.loss, self.batch_loss = model.build_model(self.global_step)
                 self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
                                      tf.log(tf.cast(self.global_step, tf.float32) + 1))
@@ -81,14 +81,6 @@ class Model(object):
                 self.symbols_rl = model.sample_rl()
                 self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
                             0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)), lambda: config.rl_learning_rate)
-            elif model_tpye == "TransformerModel":
-                model = TransformerModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
-                                        self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.CL,
-                                        config.hidden, config.char_dim, config.glove_dim, config.num_heads)
-                self.loss = model.build_model(self.global_step)
-                self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
-                self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
-                                     tf.log(tf.cast(self.global_step, tf.float32) + 1))
             total_params()
 
             if config.l2_norm is not None:

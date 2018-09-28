@@ -7,7 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
-from main import train, train_rl, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
+from main import train, train_rl, train_dual, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
 
 flags = tf.flags
 
@@ -26,9 +26,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data1"
-log_dir = os.path.join(dir_name, "sevent_que_gen_rl_bleu1")
-save_dir = os.path.join(dir_name, "smodel_que_gen_rl_bleu1")
-answer_dir = os.path.join(dir_name, "sanswer_que_gen_rl_bleu1")
+log_dir = os.path.join(dir_name, "sevent_que_gen_rl")
+save_dir = os.path.join(dir_name, "smodel_que_gen_rl")
+save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
+answer_dir = os.path.join(dir_name, "sanswer_que_gen_rl")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -58,14 +59,17 @@ if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
 flags.DEFINE_string("model_tpye", "QANetRLGenerator", "Model type")
+flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
+flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "bleu", "The metric used to train rl")
-flags.DEFINE_string("baseline_type", "multinomial", "The sampling strategy used when producing baseline")
+flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
 flags.DEFINE_string("log_dir", log_dir, "Directory for tf event")
 flags.DEFINE_string("save_dir", save_dir, "Directory for saving model")
+flags.DEFINE_string("save_dir_dual", save_dir_dual, "Directory for saving model")
 flags.DEFINE_string("train_file", train_file, "Train source file")
 flags.DEFINE_string("dev_file", dev_file, "Dev source file")
 flags.DEFINE_string("test_file", test_file, "Test source file")
@@ -147,8 +151,10 @@ def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
-    if config.mode == "train_rl":
+    elif config.mode == "train_rl":
         train_rl(config)
+    elif config.mode == "train_dual":
+        train_dual(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "debug":
