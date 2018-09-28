@@ -168,7 +168,8 @@ def train_rl(config):
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
-                    reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=config.is_answer, metric="bleu")
+                    reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word,
+                                         is_answer=config.is_answer, metric=config.rl_metric)
                     sa = np.array(zip(*symbols_rl))
                     loss, _ = sess.run([model.loss, model.train_op], feed_dict={
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
