@@ -169,18 +169,24 @@ def train_rl(config):
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
-                    reward = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word,
+                    reward, reward_rl, reward_base = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word,
                                          is_answer=config.is_answer, metric=config.rl_metric)
                     sa = np.array(zip(*symbols_rl))
-                    loss, _ = sess.run([model.loss, model.train_op], feed_dict={
+                    loss_ml, loss_rl, _ = sess.run([model.loss_ml, model.loss_rl, model.train_op], feed_dict={
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout,
                         model.sa: sa, model.reward: reward})
                 if global_step % config.period == 0:
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="model/loss", simple_value=loss), ])
-                    writer.add_summary(loss_sum, global_step)
+                    loss_ml_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="model/loss_ml", simple_value=loss_ml), ])
+                    writer.add_summary(loss_ml_sum, global_step)
+                    reward_rl_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="model/reward_rl", simple_value=reward_rl), ])
+                    writer.add_summary(reward_rl_sum, global_step)
+                    reward_base_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="model/reward", simple_value=reward_base), ])
+                    writer.add_summary(reward_base_sum, global_step)
                 if global_step % config.checkpoint == 0:
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
@@ -188,9 +194,6 @@ def train_rl(config):
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
-                    writer.add_summary(loss_sum, global_step)
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)
@@ -201,9 +204,6 @@ def train_rl(config):
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                                    dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
-                    writer.add_summary(loss_sum, global_step)
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)

@@ -195,7 +195,6 @@ class QANetGenerator(QANetModel):
         self.AL = ans_limit
         self.NV = num_words
         self.NVP = self.NV + self.PL
-        self.loop_function = self._loop_function
 
     def build_model(self, global_step):
         # word, character embedding
@@ -267,7 +266,7 @@ class QANetGenerator(QANetModel):
                 einp = tf.nn.embedding_lookup(self.word_mat, inp)
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
-                        einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen,
+                        einp, prev_probs, index, prev_symbol = self._loop_function(beam_size, prev, attn_w, p_gen,
                                                                                    prev_probs, i)
                         h = tf.gather_nd(h, index)  # update prev state
                         state = tuple(tf.gather_nd(s, index) for s in state)  # update prev state
@@ -306,7 +305,7 @@ class QANetGenerator(QANetModel):
                 prev = output
 
             # process the last symbol
-            einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen, prev_probs, i)
+            einp, prev_probs, index, prev_symbol = self._loop_function(beam_size, prev, attn_w, p_gen, prev_probs, i)
             for j, symbol in enumerate(symbols):
                 symbols[j] = tf.gather_nd(symbol, index)  # update prev symbols
             symbols.append(prev_symbol)
@@ -393,7 +392,6 @@ class QANetRLGenerator(QANetGenerator):
                                 para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head,
                                 model_encoder_layers, model_encoder_blocks, model_encoder_convs, input_encoder_convs)
         self.reward = reward
-        self.loop_function_rl = self._loop_function_rl
         self.sa = sampled_answer
         self.lamda = mixing_ratio
         self.pre_step = pre_step
@@ -416,7 +414,7 @@ class QANetRLGenerator(QANetGenerator):
         outputs, oups, attn_ws, p_gens = self.decode(self.sa, reuse=True)
         loss_rl = tf.reduce_mean(self._compute_loss(outputs, oups, attn_ws, p_gens, global_step) * self.reward)
         loss = tf.cond(global_step < self.pre_step, lambda: loss_ml, lambda: (1 - self.lamda) * loss_ml + self.lamda * loss_rl)
-        return loss
+        return loss, loss_ml, loss_rl
 
     def sample_rl(self):
         with tf.variable_scope("Decoder_Layer", reuse=True):
@@ -433,7 +431,7 @@ class QANetRLGenerator(QANetGenerator):
                 einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [self.N, self.dw])
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
-                        einp, prev_symbol = self.loop_function_rl(prev, attn_w, p_gen, i)
+                        einp, prev_symbol = self._loop_function_rl(prev, attn_w, p_gen, i)
                         symbols.append(prev_symbol)
 
                 attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=self.d, num_heads=1,
@@ -457,7 +455,7 @@ class QANetRLGenerator(QANetGenerator):
                 prev = output
 
             # process the last symbol
-            einp, prev_symbol = self.loop_function_rl(prev, attn_w, p_gen, i)
+            einp, prev_symbol = self._loop_function_rl(prev, attn_w, p_gen, i)
             symbols.append(prev_symbol)
 
             return symbols

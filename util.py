@@ -149,6 +149,8 @@ def evaluate(eval_file, answer_dict, is_answer=True):
 
 def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, metric="f1"):
     rewards = []
+    rewards_rl = []
+    rewards_base = []
     for qid, syms, syms_rl in zip(qa_id, zip(*symbols), zip(*symbols_rl)):
         ground_truths = eval_file[str(qid)]["questions"] if not is_answer else eval_file[str(qid)]["answers"]
         context_tokens = eval_file[str(qid)]["context_tokens"]
@@ -164,6 +166,8 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
             f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
             f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
             rewards.append(f1_rl - f1)
+            rewards_rl.append(f1_rl)
+            rewards_base.append(f1)
         elif metric == "bleu":
             answer = normalize_answer(answer).split()
             answer_rl = normalize_answer(answer_rl).split()
@@ -171,7 +175,9 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
             bleu = compute_bleu([ground_truths], [answer])[0]
             bleu_rl = compute_bleu([ground_truths], [answer_rl])[0]
             rewards.append(bleu_rl - bleu)
-    return np.array(rewards)
+            rewards_rl.append(bleu_rl)
+            rewards_base.append(bleu)
+    return np.array(rewards), np.mean(rewards_rl), np.mean(rewards_base)
 
 
 def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size, ques_limit, char_limit, id2word, char2idx_dict):
