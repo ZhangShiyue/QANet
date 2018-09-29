@@ -156,6 +156,7 @@ def train_rl(config):
                 saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
             global_step = max(sess.run(model.global_step), 1)
             train_next_element = train_iterator.get_next()
+            start_step = global_step
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
                 c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
@@ -177,7 +178,7 @@ def train_rl(config):
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout,
                         model.sa: sa, model.reward: reward})
-                if global_step % config.period == 0:
+                if global_step == start_step + 1 or global_step % config.period == 0:
                     loss_ml_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss_ml", simple_value=loss_ml), ])
                     writer.add_summary(loss_ml_sum, global_step)
@@ -185,8 +186,9 @@ def train_rl(config):
                             tag="model/reward_rl", simple_value=reward_rl), ])
                     writer.add_summary(reward_rl_sum, global_step)
                     reward_base_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="model/reward", simple_value=reward_base), ])
+                            tag="model/reward_base", simple_value=reward_base), ])
                     writer.add_summary(reward_base_sum, global_step)
+                    writer.flush()
                 if global_step % config.checkpoint == 0:
                     filename = os.path.join(
                             config.save_dir, "model_{}.ckpt".format(global_step))
