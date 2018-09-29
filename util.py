@@ -147,7 +147,7 @@ def evaluate(eval_file, answer_dict, is_answer=True):
     return {'exact_match': exact_match, 'f1': f1}
 
 
-def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, metric="f1"):
+def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, metric="f1", has_baseline=True):
     rewards = []
     rewards_rl = []
     rewards_base = []
@@ -165,7 +165,7 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
         if metric == "f1":
             f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
             f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
-            rewards.append(f1_rl - f1)
+            rewards.append(f1_rl - f1 if has_baseline else f1_rl)
             rewards_rl.append(f1_rl)
             rewards_base.append(f1)
         elif metric == "bleu":
@@ -174,7 +174,7 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
             ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
             bleu = compute_bleu([ground_truths], [answer])[0]
             bleu_rl = compute_bleu([ground_truths], [answer_rl])[0]
-            rewards.append(bleu_rl - bleu)
+            rewards.append(bleu_rl - bleu if has_baseline else bleu_rl)
             rewards_rl.append(bleu_rl)
             rewards_base.append(bleu)
     return np.array(rewards), np.mean(rewards_rl), np.mean(rewards_base)
