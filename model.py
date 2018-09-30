@@ -65,7 +65,7 @@ class Model(object):
                                        config.glove_dim, config.num_heads, config.model_encoder_layers,
                                        config.model_encoder_blocks, config.model_encoder_convs, config.input_encoder_convs)
                 self.loss = model.build_model(self.global_step)
-                self.symbols, self.prev_probs = model.sample(config.beam_size)
+                self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
                                      tf.log(tf.cast(self.global_step, tf.float32) + 1))
             elif model_tpye == "QANetRLGenerator":

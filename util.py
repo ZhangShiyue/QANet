@@ -134,20 +134,25 @@ def convert_tokens_g(eval_file, qa_id, symbols, id2word):
 
 def evaluate(eval_file, answer_dict, is_answer=True):
     f1 = exact_match = total = 0
+    f1s = {}
     for key, value in answer_dict.items():
         total += 1
         ground_truths = eval_file[key]["questions"] if not is_answer else eval_file[key]["answers"]
         prediction = value
-        exact_match += metric_max_over_ground_truths(
+        em = metric_max_over_ground_truths(
                 exact_match_score, prediction, ground_truths)
-        f1 += metric_max_over_ground_truths(f1_score,
+        exact_match += em
+        f_1 = metric_max_over_ground_truths(f1_score,
                                             prediction, ground_truths)
+        f1 += f_1
+        f1s[key] = str(f_1)
     exact_match = 100.0 * exact_match / total
     f1 = 100.0 * f1 / total
-    return {'exact_match': exact_match, 'f1': f1}
+    return {'exact_match': exact_match, 'f1': f1}, f1s
 
 
-def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, metric="f1", has_baseline=True):
+def evaluate_rl(eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word, is_answer=True,
+                metric="f1", has_baseline=True, if_fix_base=False):
     rewards = []
     rewards_rl = []
     rewards_base = []
@@ -163,7 +168,7 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
         answer_rl = u' '.join([id2word[sym_rl] if sym_rl in id2word
                                else context_tokens[sym_rl - len(id2word)] for sym_rl in syms_rl])
         if metric == "f1":
-            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
+            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths) if not if_fix_base else float(baseline_file[str(qid)])
             f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
             rewards.append(f1_rl - f1 if has_baseline else f1_rl)
             rewards_rl.append(f1_rl)
@@ -172,7 +177,7 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, is_answer=True, 
             answer = normalize_answer(answer).split()
             answer_rl = normalize_answer(answer_rl).split()
             ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
-            bleu = compute_bleu([ground_truths], [answer])[0]
+            bleu = compute_bleu([ground_truths], [answer])[0] if not if_fix_base else float(baseline_file[str(qid)])
             bleu_rl = compute_bleu([ground_truths], [answer_rl])[0]
             rewards.append(bleu_rl - bleu if has_baseline else bleu_rl)
             rewards_rl.append(bleu_rl)

@@ -442,7 +442,6 @@ def prepro_rerank(config):
             total += 1
             record = tf.train.Example(features=tf.train.Features(feature={
                 "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
-                # "context_voc": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_voc.tostring()])),
                 "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
                 "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idx.tostring()])),
                 "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),

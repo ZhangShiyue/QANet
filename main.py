@@ -127,6 +127,8 @@ def train_rl(config):
         meta = json.load(fh)
     with open(config.word_dictionary, "r") as fh:
         word_dictionary = json.load(fh)
+    with open(config.baseline_file, "r") as fh:
+        baseline_file = json.load(fh)
 
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
@@ -170,8 +172,8 @@ def train_rl(config):
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
                         model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
-                    reward, reward_rl, reward_base = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word,
-                                         is_answer=config.is_answer, metric=config.rl_metric)
+                    reward, reward_rl, reward_base = evaluate_rl(train_eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word,
+                                         is_answer=config.is_answer, metric=config.rl_metric, if_fix_base=config.if_fix_base)
                     sa = np.array(zip(*symbols_rl))
                     loss_ml, loss_rl, _ = sess.run([model.loss_ml, model.loss_rl, model.train_op], feed_dict={
                         model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
@@ -391,8 +393,9 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             answer_dict.update(answer_dict_)
         losses.append(loss)
     loss = np.mean(losses)
-    metrics = evaluate(eval_file, answer_dict, is_answer=is_answer)
+    metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
+    metrics["f1s"] = f1s
     if is_test:
         bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
         rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
@@ -441,25 +444,28 @@ def test(config):
                 metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer, is_test=True)
-                loss_sum = tf.Summary(value=[tf.Summary.Value(
-                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
-                writer.add_summary(loss_sum, global_step)
-                f1_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
-                writer.add_summary(f1_sum, global_step)
-                em_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
-                writer.add_summary(em_sum, global_step)
-                bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
-                writer.add_summary(bleu_sum, global_step)
-                rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
-                writer.add_summary(rougeL_sum, global_step)
+                f1s = metrics["f1s"]
+                with open(config.baseline_file, "w") as fh:
+                    json.dump(f1s, fh)
+                # loss_sum = tf.Summary(value=[tf.Summary.Value(
+                #                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                # writer.add_summary(loss_sum, global_step)
+                # f1_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
+                # writer.add_summary(f1_sum, global_step)
+                # em_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
+                # writer.add_summary(em_sum, global_step)
+                # bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                # writer.add_summary(bleu_sum, global_step)
+                # rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                #         tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
+                # writer.add_summary(rougeL_sum, global_step)
                 # meteor_sum = tf.Summary(value=[tf.Summary.Value(
                 #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
                 # writer.add_summary(meteor_sum, global_step)
-                writer.flush()
+                # writer.flush()
 
 
 def test_beam(config):
@@ -557,11 +563,10 @@ def test_reranked(config):
 
 
 def tmp(config):
-    with open(config.word_dictionary, "r") as fh:
-        word_dictionary = json.load(fh)
+    with open(config.baseline_file, "r") as fh:
+        baseline_file = json.load(fh)
 
-    print len(word_dictionary)
-    ws = []
-    for w in word_dictionary:
-        ws.append(w.lower())
-    print len(set(ws))
+    f1 = 0.
+    for key in baseline_file:
+        f1 += float(baseline_file[key])
+    print f1 / len(baseline_file)
