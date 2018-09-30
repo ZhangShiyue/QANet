@@ -448,16 +448,16 @@ def test(config):
                                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
                 writer.add_summary(loss_sum, global_step)
                 f1_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/f1_{}".format("test", config.beam_size), simple_value=metrics["f1"]), ])
+                        tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
                 writer.add_summary(f1_sum, global_step)
                 em_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/em_{}".format("test", config.beam_size), simple_value=metrics["exact_match"]), ])
+                        tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
                 writer.add_summary(em_sum, global_step)
                 bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/bleu_{}".format("test", config.beam_size), simple_value=bleus[0]*100), ])
+                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
                 writer.add_summary(bleu_sum, global_step)
                 rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/rougeL_{}".format("test", config.beam_size), simple_value=rougeL*100), ])
+                        tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
                 writer.add_summary(rougeL_sum, global_step)
                 # meteor_sum = tf.Summary(value=[tf.Summary.Value(
                 #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
