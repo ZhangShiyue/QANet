@@ -444,28 +444,25 @@ def test(config):
                 metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer, is_test=True)
-                f1s = metrics["f1s"]
-                with open(config.baseline_file, "w") as fh:
-                    json.dump(f1s, fh)
-                # loss_sum = tf.Summary(value=[tf.Summary.Value(
-                #                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
-                # writer.add_summary(loss_sum, global_step)
-                # f1_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/f1".format("test"), simple_value=metrics["f1"]), ])
-                # writer.add_summary(f1_sum, global_step)
-                # em_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
-                # writer.add_summary(em_sum, global_step)
-                # bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
-                # writer.add_summary(bleu_sum, global_step)
-                # rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
-                # writer.add_summary(rougeL_sum, global_step)
+                loss_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
+                writer.add_summary(loss_sum, global_step)
+                f1_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/f1_{}".format("test", config.beam_size), simple_value=metrics["f1"]), ])
+                writer.add_summary(f1_sum, global_step)
+                em_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/em_{}".format("test", config.beam_size), simple_value=metrics["exact_match"]), ])
+                writer.add_summary(em_sum, global_step)
+                bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/bleu_{}".format("test", config.beam_size), simple_value=bleus[0]*100), ])
+                writer.add_summary(bleu_sum, global_step)
+                rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/rougeL_{}".format("test", config.beam_size), simple_value=rougeL*100), ])
+                writer.add_summary(rougeL_sum, global_step)
                 # meteor_sum = tf.Summary(value=[tf.Summary.Value(
                 #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
                 # writer.add_summary(meteor_sum, global_step)
-                # writer.flush()
+                writer.flush()
 
 
 def test_beam(config):
