@@ -113,7 +113,6 @@ def train(config):
                         best_f1 = max(best_f1, dev_f1)
 
 
-
 def train_rl(config):
     with open(config.word_emb_file, "r") as fh:
         word_mat = np.array(json.load(fh), dtype=np.float32)
