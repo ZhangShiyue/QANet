@@ -105,10 +105,14 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
     return examples, eval_examples
 
 
-def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_size=None):
+def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_size=None, size_limit=0):
     print("Generating {} embedding...".format(data_type))
     embedding_dict = {}
-    filtered_elements = [k for k, v in counter.items() if v > limit]
+    filtered_elements = counter
+    if limit > 0:
+        filtered_elements = {k: v for k, v in counter.items() if v > limit}
+    if size_limit > 0:
+        filtered_elements = dict(sorted(counter.items(), key=lambda x: x[1], reverse=True)[:size_limit])
     if emb_file is not None:
         assert size is not None
         assert vec_size is not None
@@ -117,7 +121,7 @@ def get_embedding(counter, data_type, limit=-1, emb_file=None, size=None, vec_si
                 array = line.split()
                 word = "".join(array[0:-vec_size])
                 vector = list(map(float, array[-vec_size:]))
-                if word in counter and counter[word] > limit:
+                if word in filtered_elements:
                     embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
                 len(embedding_dict), len(filtered_elements), data_type))
