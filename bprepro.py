@@ -6,6 +6,7 @@ import ujson as json
 from collections import Counter
 import numpy as np
 from codecs import open
+from nltk import sent_tokenize, word_tokenize
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -15,9 +16,12 @@ https://github.com/HKUST-KnowComp/R-Net
 nlp = spacy.blank("en")
 
 
-def word_tokenize(sent, lower_word=False):
-    doc = nlp(sent)
-    return [token.text.lower() if lower_word else token.text for token in doc]
+def tokenize(text, tokenzie_sent=False):
+    if tokenzie_sent:
+        return [word_tokenize(sent) for sent in sent_tokenize(text)]
+    else:
+        return word_tokenize(text)
+
 
 
 def convert_idx(text, tokens):
@@ -38,7 +42,7 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
     examples = []
     eval_examples = {}
     total = 0
-    max_c, max_q, max_a = 0, 0, 0
+    max_s, max_w, max_q, max_a = 0, 0, 0, 0
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
@@ -47,8 +51,9 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                 if lower_word:
                     context = context.lower()
-                context_tokens = word_tokenize(context)
-                max_c = max(max_c, len(context_tokens))
+                context_tokens = tokenize(context)
+                max_s = max(max_s, len(context_tokens))
+                max_w = max(max_w, max(map(len, context_tokens)))
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
                 for token in context_tokens:
@@ -61,7 +66,7 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                             "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
                     if lower_word:
                         ques = ques.lower()
-                    ques_tokens = ["--GO--"] + word_tokenize(ques) + ["--EOS--"]
+                    ques_tokens = ["--GO--"] + tokenize(ques) + ["--EOS--"]
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
                     for token in ques_tokens:
@@ -79,7 +84,7 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                         answer_start = answer['answer_start']
                         answer_end = answer_start + len(answer_text)
                         answer_texts.append(answer_text)
-                        answer_tokens.append(["--GO--"] + word_tokenize(answer_text)+ ["--EOS--"])
+                        answer_tokens.append(["--GO--"] + tokenize(answer_text)+ ["--EOS--"])
                         answer_chars.append([list(token) for token in answer_tokens[-1]])
                         max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
@@ -127,8 +132,8 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
                 array = line.split()
                 word = "".join(array[0:-vec_size])
                 vector = list(map(float, array[-vec_size:]))
-                if word.lower() in filtered_elements:
-                    embedding_dict[word.lower()] = vector
+                if word in filtered_elements:
+                    embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
                 len(embedding_dict), len(filtered_elements), data_type))
     else:

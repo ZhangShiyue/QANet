@@ -11,8 +11,8 @@ from main import train, train_rl, train_dual, test, test_beam, test_bleu, test_r
 
 flags = tf.flags
 
-home = os.path.expanduser("/nlp/shiyue/QANet/")
-# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+# home = os.path.expanduser("/nlp/shiyue/QANet/")
+home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data1"
-log_dir = os.path.join(dir_name, "sevent_que_gen1")
-save_dir = os.path.join(dir_name, "smodel_que_gen1")
+target_dir = "data2"
+log_dir = os.path.join(dir_name, "sevent_que_gen2")
+save_dir = os.path.join(dir_name, "smodel_que_gen2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "sanswer_que_gen1")
+answer_dir = os.path.join(dir_name, "sanswer_que_gen2")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -67,7 +67,7 @@ flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
-flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
+flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
@@ -99,21 +99,6 @@ flags.DEFINE_string("beam_search_file", beam_search_file, "Test data with candid
 flags.DEFINE_string("rerank_meta", rerank_meta, "Test data with candidate answers")
 flags.DEFINE_string("listener_score_file", listener_score_file, "Test data with candidate answers")
 
-flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
-flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
-flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
-flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
-
-flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
-flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
-flags.DEFINE_integer("ans_limit", 30, "Limit length for answers")
-flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
-flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
-flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
-flags.DEFINE_integer("char_limit", 16, "Limit length for character")
-flags.DEFINE_integer("word_count_limit", -1, "Min count for word")
-flags.DEFINE_integer("char_count_limit", -1, "Min count for char")
-
 flags.DEFINE_integer("capacity", 15000, "Batch size of dataset shuffle")
 flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
@@ -143,14 +128,28 @@ flags.DEFINE_integer("model_encoder_blocks", 2, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_convs", 2, "The number of model encoder")
 flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 
-# Extensions (Uncomment corresponding code in download.sh to download the required data)
+# preprocess data
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
 flags.DEFINE_string("glove_char_file", glove_char_file, "Glove character embedding source file")
 flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained character embedding")
+flags.DEFINE_boolean("answer_notation", True, "Whether to notate answer's position in context")
+flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
+flags.DEFINE_integer("vocab_size_limit", 50000, "Maximum number of words in the vocab")
+flags.DEFINE_integer("vocab_count_limit", 10, "Minimum count of words in the vocab")
+flags.DEFINE_integer("char_count_limit", 50, "Minimum count of chars in the char vocab")
+flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
+flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
+flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
+flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
-fasttext_file = os.path.join(home, "data", "fasttext", "wiki-news-300d-1M.vec")
-flags.DEFINE_string("fasttext_file", fasttext_file, "Fasttext word embedding source file")
-flags.DEFINE_boolean("fasttext", False, "Whether to use fasttext")
+flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
+flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
+flags.DEFINE_integer("ans_limit", 30, "Limit length for answers")
+flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
+flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
+flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
+flags.DEFINE_integer("char_limit", 16, "Limit length for character")
+
 
 def main(_):
     config = flags.FLAGS

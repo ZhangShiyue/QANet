@@ -327,12 +327,10 @@ class QANetGenerator(QANetModel):
         dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NVP])
         # combine generation probs and copy probs
         logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
-        # mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
-        # logit = mask_logits(logit, mask)
         logit = tf.reshape(logit, [self.N, dim, -1])
+        plus_logit = tf.zeros([self.N, dim, self.PL]) - 1e30
+        logit = tf.concat([logit, plus_logit], axis=-1)
         dist_g = tf.nn.softmax(logit)
-        plus_dist_g = tf.zeros([self.N, dim, self.PL])
-        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
         # beam search
         prev_probs = tf.expand_dims(prev_probs, -1)
@@ -361,21 +359,22 @@ class QANetGenerator(QANetModel):
             # combine copy and generation probs
             dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
-            # mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
-            # logit = mask_logits(logit, mask)
+            plus_logit = tf.zeros([self.N, self.PL]) - 1e30
+            logit = tf.concat([logit, plus_logit], axis=-1)
             dist_g = tf.nn.softmax(logit)
-            plus_dist_g = tf.zeros([self.N, self.PL])
-            dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
             final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
             # get loss
             indices = tf.concat((batch_nums, oup), axis=1)
             gold_probs = tf.gather_nd(final_dist, indices)
             target = tf.reshape(oup, [-1])
-            # crossent = tf.cond(global_step < 10000,
-            #                    lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
-            #                    lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
-            crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
-            weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
+            crossent = tf.cond(global_step < 10000,
+                               lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
+                               lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
+            # crossent = -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0))
+            weight_add = tf.cast(target < self.NV, tf.float32)
+            weight = tf.cond(global_step < 10000,
+                             lambda: tf.cast(tf.cast(target, tf.bool), tf.float32) * weight_add,
+                             lambda: tf.cast(tf.cast(target, tf.bool), tf.float32))
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
@@ -468,11 +467,9 @@ class QANetRLGenerator(QANetGenerator):
 
         # combined probs
         logit = tf.matmul(prev, self.word_mat, transpose_b=True)
-        # mask = tf.concat([tf.ones([self.N, self.NV]), tf.to_float(self.c_mask)], axis=-1)
-        # logit = mask_logits(logit, mask)
+        plus_logit = tf.zeros([self.N, self.PL]) - 1e30
+        logit = tf.concat([logit, plus_logit], axis=-1)
         dist_g = tf.nn.softmax(logit)
-        plus_dist_g = tf.zeros([self.N, self.PL])
-        dist_g = tf.concat([dist_g, plus_dist_g], axis=-1)
         final_dist = p_gen * dist_g + (1 - p_gen) * dist_c
 
         # multinomial sample
