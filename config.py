@@ -26,7 +26,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_bidaf"
+target_dir = "data2"
 log_dir = os.path.join(dir_name, "sevent_que_gen2")
 save_dir = os.path.join(dir_name, "smodel_que_gen2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
@@ -116,7 +116,7 @@ flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the m
 flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
-flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
+flags.DEFINE_float("ml_learning_rate", 0.0001, "Learning rate")
 flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
 flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 1.0, "L2 norm scale")
@@ -125,7 +125,7 @@ flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
 flags.DEFINE_integer("model_encoder_layers", 3, "The number of model encoder")
-flags.DEFINE_integer("model_encoder_blocks", 2, "The number of model encoder")
+flags.DEFINE_integer("model_encoder_blocks", 1, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_convs", 2, "The number of model encoder")
 flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 

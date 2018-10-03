@@ -88,7 +88,7 @@ def train(config):
                     writer.add_summary(em_sum, global_step)
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
-                                                   dev_eval_file, sess, dev_iterator, id2word,
+                                             dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
