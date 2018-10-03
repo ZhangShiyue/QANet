@@ -7,6 +7,7 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 from prepro import prepro
+from bprepro import bprepro
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
 
 flags = tf.flags
@@ -25,7 +26,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data2"
+target_dir = "data_bidaf"
 log_dir = os.path.join(dir_name, "sevent_que_gen2")
 save_dir = os.path.join(dir_name, "smodel_que_gen2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
@@ -132,12 +133,11 @@ flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
 flags.DEFINE_string("glove_char_file", glove_char_file, "Glove character embedding source file")
 flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained character embedding")
-flags.DEFINE_boolean("answer_notation", True, "Whether to notate answer's position in context")
+flags.DEFINE_boolean("answer_notation", False, "Whether to notate answer's position in context")
 flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
 flags.DEFINE_integer("vocab_size_limit", 50000, "Maximum number of words in the vocab")
 flags.DEFINE_integer("vocab_count_limit", 10, "Minimum count of words in the vocab")
 flags.DEFINE_integer("char_count_limit", 50, "Minimum count of chars in the char vocab")
-flags.DEFINE_integer("glove_char_size", 94, "Corpus size for Glove")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
 flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
@@ -149,6 +149,10 @@ flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in tes
 flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
 flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
+flags.DEFINE_integer("num_sent_limit", 8, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("sent_limit", 400, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("test_num_sent_limit", 30, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("test_sent_limit", 400, "Limit number of sentences in paragraph")
 
 
 def main(_):
@@ -161,6 +165,8 @@ def main(_):
         train_dual(config)
     elif config.mode == "prepro":
         prepro(config)
+    elif config.mode == "bprepro":
+        bprepro(config)
     elif config.mode == "debug":
         config.num_steps = 2
         config.val_num_batches = 1

@@ -6,7 +6,6 @@ import ujson as json
 from collections import Counter
 import numpy as np
 from codecs import open
-from nltk import sent_tokenize, word_tokenize
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -14,26 +13,28 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 nlp = spacy.blank("en")
+nlp.add_pipe(nlp.create_pipe('sentencizer'))
 
 
 def tokenize(text, tokenzie_sent=False):
     if tokenzie_sent:
-        return [word_tokenize(sent) for sent in sent_tokenize(text)]
+        return [[token.text for token in nlp(sent.text)] for sent in nlp(text).sents]
     else:
-        return word_tokenize(text)
+        return [token.text for token in nlp(text)]
 
 
-
-def convert_idx(text, tokens):
+def convert_idx(text, sents):
     current = 0
     spans = []
-    for token in tokens:
-        current = text.find(token, current)
-        if current < 0:
-            print("Token {} cannot be found".format(token))
-            raise Exception()
-        spans.append((current, current + len(token)))
-        current += len(token)
+    for sent in sents:
+        spans.append([])
+        for token in sent:
+            current = text.find(token, current)
+            if current < 0:
+                print("Token {} cannot be found".format(token))
+                raise Exception()
+            spans[-1].append((current, current + len(token)))
+            current += len(token)
     return spans
 
 
@@ -41,6 +42,7 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
+    sent_counts = []
     total = 0
     max_s, max_w, max_q, max_a = 0, 0, 0, 0
     with open(filename, "r") as fh:
@@ -48,18 +50,20 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
         for article in tqdm(source["data"]):
             for para in article["paragraphs"]:
                 context = para["context"].replace(
-                        "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
+                        u"''", u'" ').replace(u"``", u'" ').replace(u'\u2013', '-')
                 if lower_word:
                     context = context.lower()
-                context_tokens = tokenize(context)
+                context_tokens = tokenize(context, tokenzie_sent=True)
                 max_s = max(max_s, len(context_tokens))
+                sent_counts.append(len(context_tokens))
                 max_w = max(max_w, max(map(len, context_tokens)))
-                context_chars = [list(token) for token in context_tokens]
+                context_chars = [[list(token) for token in sent] for sent in context_tokens]
                 spans = convert_idx(context, context_tokens)
-                for token in context_tokens:
-                    word_counter[token] += len(para["qas"])
-                    for char in token:
-                        char_counter[char] += len(para["qas"])
+                for sent in context_tokens:
+                    for token in sent:
+                        word_counter[token] += len(para["qas"])
+                        for char in token:
+                            char_counter[char] += len(para["qas"])
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
@@ -88,31 +92,25 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                         answer_chars.append([list(token) for token in answer_tokens[-1]])
                         max_a = max(max_a, len(answer_tokens[-1]))
                         answer_span = []
-                        for idx, span in enumerate(spans):
-                            if not (answer_end <= span[0] or answer_start >= span[1]):
-                                answer_span.append(idx)
+                        for idx, sent in enumerate(spans):
+                            for jdx, span in enumerate(sent):
+                                if not (answer_end <= span[0] or answer_start >= span[1]):
+                                    answer_span.append((idx, jdx))
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    if answer_notation:
-                        context_tokens_tmp = []
-                        for i, token in enumerate(context_tokens):
-                            if i == y1s[0]:
-                                context_tokens_tmp.append("--GO--")
-                            context_tokens_tmp.append(token)
-                            if i == y2s[0]:
-                                context_tokens_tmp.append("--EOS--")
-                    example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens, "context_chars": context_chars,
+                    example = {"context_tokens": context_tokens, "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
                                "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
-                        "context": context, "context_tokens": context_tokens_tmp if answer_notation else context_tokens,
+                        "context": context, "context_tokens": context_tokens,
                         "spans": spans, "questions": [ques], "answers": answer_texts, "uuid": qa["id"]}
         random.shuffle(examples)
         print("{} questions in total".format(len(examples)))
-        print("max_c, max_q, max_a: {}, {}, {}".format(max_c, max_q, max_a))
+        print("max_s, max_w, max_q, max_a: {}, {}, {}, {}".format(max_s, max_w, max_q, max_a))
+        print Counter(sent_counts)
     return examples, eval_examples
 
 
@@ -165,77 +163,17 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
     return emb_mat, token2idx_dict
 
 
-def convert_to_features(config, data, word2idx_dict, char2idx_dict):
-    example = {}
-    context, question = data
-    context = context.replace("''", '" ').replace("``", '" ')
-    question = question.replace("''", '" ').replace("``", '" ')
-    example['context_tokens'] = word_tokenize(context)
-    example['ques_tokens'] = word_tokenize(question)
-    example['context_chars'] = [list(token) for token in example['context_tokens']]
-    example['ques_chars'] = [list(token) for token in example['ques_tokens']]
-
-    para_limit = config.test_para_limit
-    ques_limit = config.test_ques_limit
-    ans_limit = config.test_ans_limit
-    char_limit = config.char_limit
-
-    def filter_func(example):
-        return len(example["context_tokens"]) > para_limit or \
-               len(example["ques_tokens"]) > ques_limit \
-               (example["y2s"][0] - example["y1s"][0]) > (ans_limit - 3)
-
-    if filter_func(example):
-        raise ValueError("Context/Questions lengths are over the limit")
-
-    context_idxs = np.zeros([para_limit], dtype=np.int32)
-    context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
-    ques_idxs = np.zeros([ques_limit], dtype=np.int32)
-    ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
-    y1 = np.zeros([para_limit], dtype=np.float32)
-    y2 = np.zeros([para_limit], dtype=np.float32)
-
-    def _get_word(word):
-        for each in (word, word.lower(), word.capitalize(), word.upper()):
-            if each in word2idx_dict:
-                return word2idx_dict[each]
-        return 1
-
-    def _get_char(char):
-        if char in char2idx_dict:
-            return char2idx_dict[char]
-        return 1
-
-    for i, token in enumerate(example["context_tokens"]):
-        context_idxs[i] = _get_word(token)
-
-    for i, token in enumerate(example["ques_tokens"]):
-        ques_idxs[i] = _get_word(token)
-
-    for i, token in enumerate(example["context_chars"]):
-        for j, char in enumerate(token):
-            if j == char_limit:
-                break
-            context_char_idxs[i, j] = _get_char(char)
-
-    for i, token in enumerate(example["ques_chars"]):
-        for j, char in enumerate(token):
-            if j == char_limit:
-                break
-            ques_char_idxs[i, j] = _get_char(char)
-
-    return context_idxs, context_char_idxs, ques_idxs, ques_char_idxs
-
-
 def build_features(config, examples, data_type, out_file, word2idx_dict,
                    char2idx_dict, is_test=False, answer_notation=False):
-    para_limit = config.test_para_limit if is_test else config.para_limit
+    num_sent_limit = config.test_num_sent_limit if is_test else config.num_sent_limit
+    sent_limit = config.test_sent_limit if is_test else config.sent_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
     ans_limit = config.test_ans_limit if is_test else config.ans_limit
     char_limit = config.char_limit
 
     def filter_func(example, is_test=False):
-        return len(example["context_tokens"]) > para_limit or \
+        return len(example["context_tokens"]) > num_sent_limit or \
+               max(map(len, example["context_tokens"])) > sent_limit or \
                len(example["ques_tokens"]) > ques_limit or \
                len(example["ans_tokens"][0]) > ans_limit
 
@@ -251,17 +189,18 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
             continue
 
         total += 1
-        context_idxs = np.zeros([para_limit], dtype=np.int32)
-        context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
+        context_idxs = np.zeros([num_sent_limit, sent_limit], dtype=np.int32)
+        context_char_idxs = np.zeros([num_sent_limit, sent_limit, char_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ans_char_idxs = np.zeros([ans_limit, char_limit], dtype=np.int32)
-        y1 = np.zeros([para_limit], dtype=np.float32)
-        y2 = np.zeros([para_limit], dtype=np.float32)
+        y1 = np.zeros([num_sent_limit, sent_limit], dtype=np.float32)
+        y2 = np.zeros([num_sent_limit, sent_limit], dtype=np.float32)
 
         start, end = example["y1s"][0], example["y2s"][0]
-        y1[start], y2[end] = 1.0, 1.0
+        y1[start[0]][start[1]] = 1.0
+        y2[end[0]][end[1]] = 1.0
 
         def _get_word(word, i):
             for each in (word, word.lower(), word.capitalize(), word.upper()):
@@ -274,33 +213,34 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
                 return char2idx_dict[char]
             return 1
 
-        for i, token in enumerate(example["context_tokens"]):
-            wid = _get_word(token, i)
-            context_idxs[i] = len(word2idx_dict) + i if wid == 1 else wid
+        for i, sent in enumerate(example["context_tokens"]):
+            for j, token in enumerate(sent):
+                wid = _get_word(token, i)
+                context_idxs[i, j] = wid
 
-        for i, token in enumerate(example["ques_tokens"]):
-            wid = _get_word(token, i)
-            ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
-                if wid == 1 and token in example["context_tokens"] else wid
+        for i, sent in enumerate(example["ques_tokens"]):
+            for j, token in enumerate(sent):
+                wid = _get_word(token, i)
+                ques_idxs[i, j] = wid
 
-        for i, token in enumerate(example["ans_tokens"][0]):
-            wid = _get_word(token, i)
-            if answer_notation:
-                ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
-            else:
-                ans_idxs[i] = len(word2idx_dict) + start + i - 1 if wid == 1 else wid
+        for i, sent in enumerate(example["ans_tokens"][0]):
+            for j, token in enumerate(sent):
+                wid = _get_word(token, i)
+                ans_idxs[i] = wid
 
-        for i, token in enumerate(example["context_chars"]):
-            for j, char in enumerate(token):
-                if j == char_limit:
-                    break
-                context_char_idxs[i, j] = _get_char(char)
+        for i, sent in enumerate(example["context_chars"]):
+            for j, token in enumerate(sent):
+                for k, char in enumerate(token):
+                    if k == char_limit:
+                        break
+                    context_char_idxs[i, j, k] = _get_char(char)
 
-        for i, token in enumerate(example["ques_chars"]):
-            for j, char in enumerate(token):
-                if j == char_limit:
-                    break
-                ques_char_idxs[i, j] = _get_char(char)
+        for i, sent in enumerate(example["ques_chars"]):
+            for j, token in enumerate(sent):
+                for k, char in enumerate(token):
+                    if k == char_limit:
+                        break
+                    ques_char_idxs[i, j, k] = _get_char(char)
 
         for i, token in enumerate(example["ans_chars"][0]):
             for j, char in enumerate(token):
@@ -333,7 +273,7 @@ def save(filename, obj, message=None):
             json.dump(obj, fh)
 
 
-def prepro(config):
+def bprepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
             char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
@@ -341,6 +281,7 @@ def prepro(config):
             char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
     test_examples, test_eval = process_file(config.test_file, "test", word_counter,
             char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
+    exit()
 
     word_emb_file = config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None
