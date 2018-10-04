@@ -271,19 +271,28 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
 
         for i, token in enumerate(example["context_tokens"]):
             wid = _get_word(token, i)
-            context_idxs[i] = len(word2idx_dict) + i if wid == 1 else wid
+            if config.use_pointer:
+                context_idxs[i] = len(word2idx_dict) + i if wid == 1 else wid
+            else:
+                context_idxs[i] = wid
 
         for i, token in enumerate(example["ques_tokens"]):
             wid = _get_word(token, i)
-            ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
-                if wid == 1 and token in example["context_tokens"] else wid
+            if config.use_pointer:
+                ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
+                    if wid == 1 and token in example["context_tokens"] else wid
+            else:
+                context_idxs[i] = wid
 
         for i, token in enumerate(example["ans_tokens"][0]):
             wid = _get_word(token, i)
-            if answer_notation:
-                ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
+            if config.use_pointer:
+                if answer_notation:
+                    ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
+                else:
+                    ans_idxs[i] = len(word2idx_dict) + start + i - 1 if wid == 1 else wid
             else:
-                ans_idxs[i] = len(word2idx_dict) + start + i - 1 if wid == 1 else wid
+                ans_idxs[i] = wid
 
         for i, token in enumerate(example["context_chars"]):
             for j, char in enumerate(token):

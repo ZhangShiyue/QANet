@@ -65,7 +65,8 @@ class Model(object):
                                        self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
                                        self.AL, self.CL, config.hidden, config.char_dim,
                                        config.glove_dim, config.num_heads, config.model_encoder_layers,
-                                       config.model_encoder_blocks, config.model_encoder_convs, config.input_encoder_convs)
+                                       config.model_encoder_blocks, config.model_encoder_convs,
+                                       config.input_encoder_convs, config.use_pointer)
                 self.loss = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
