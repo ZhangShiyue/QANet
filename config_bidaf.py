@@ -26,7 +26,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data2"
+target_dir = "data_bidaf"
 log_dir = os.path.join(dir_name, "sevent_que_gen2")
 save_dir = os.path.join(dir_name, "smodel_que_gen2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
@@ -149,6 +149,10 @@ flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in tes
 flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
 flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
+flags.DEFINE_integer("num_sent_limit", 8, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("sent_limit", 400, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("test_num_sent_limit", 30, "Limit number of sentences in paragraph")
+flags.DEFINE_integer("test_sent_limit", 400, "Limit number of sentences in paragraph")
 
 
 def main(_):
@@ -161,6 +165,8 @@ def main(_):
         train_dual(config)
     elif config.mode == "prepro":
         prepro(config)
+    elif config.mode == "bprepro":
+        bprepro(config)
     elif config.mode == "debug":
         config.num_steps = 2
         config.val_num_batches = 1

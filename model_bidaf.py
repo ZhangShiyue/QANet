@@ -1,11 +1,9 @@
 import tensorflow as tf
 from layers import initializer, regularizer, total_params
-from qanet import QANetModel, QANetGenerator, QANetRLGenerator
-from transformer import TransformerModel
-
+from bidaf import BiDAFModel
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, is_answer=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="BiDAFModel", trainable=True, is_answer=True, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
