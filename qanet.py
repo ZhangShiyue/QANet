@@ -375,6 +375,7 @@ class QANetGenerator(QANetModel):
             weight = tf.cond(global_step < 10000,
                              lambda: tf.cast(tf.cast(target, tf.bool), tf.float32) * weight_add,
                              lambda: tf.cast(tf.cast(target, tf.bool), tf.float32))
+            # weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)

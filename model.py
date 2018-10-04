@@ -41,8 +41,10 @@ class Model(object):
             # self.word_unk = tf.get_variable("word_unk", shape=[1, config.glove_dim], initializer=initializer())
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
                                             trainable=config.word_trainable)
-            # additional_word_mat = tf.tile(tf.nn.embedding_lookup(original_word_mat, [1]), [self.PL, 1])
+            # oov = tf.stop_gradient(tf.nn.embedding_lookup(original_word_mat, [1]))
+            # additional_word_mat = tf.tile(oov, [self.PL, 1])
             # self.word_mat = tf.concat([original_word_mat, additional_word_mat], axis=0)
+
             self.num_words = len(word_mat)
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
