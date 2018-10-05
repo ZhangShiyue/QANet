@@ -34,7 +34,6 @@ class QANetModel(object):
         self.model_encoder_convs = model_encoder_convs
         self.input_encoder_convs = input_encoder_convs
 
-
     def build_model(self, global_step):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
@@ -381,10 +380,10 @@ class QANetGenerator(QANetModel):
         crossents = []
         for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
-            dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
             target = tf.reshape(oup, [-1])
             if use_pointer:
+                dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
                 plus_logit = tf.zeros([self.N, self.PL]) - 1e30
                 logit = tf.concat([logit, plus_logit], axis=-1)
                 dist_g = tf.nn.softmax(logit)

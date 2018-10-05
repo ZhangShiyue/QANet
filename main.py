@@ -3,7 +3,6 @@ import ujson as json
 import numpy as np
 from tqdm import tqdm
 import os
-import re
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp

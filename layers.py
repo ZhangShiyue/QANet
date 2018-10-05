@@ -33,7 +33,11 @@ initializer_relu = lambda: tf.contrib.layers.variance_scaling_initializer(factor
                                                                           mode='FAN_IN',
                                                                           uniform=False,
                                                                           dtype=tf.float32)
-regularizer = tf.contrib.layers.l2_regularizer(scale=3e-7)
+
+
+def regular(scale=3e-7):
+    regularizer = tf.contrib.layers.l2_regularizer(scale=scale)
+    return regularizer
 
 
 def glu(x):

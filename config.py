@@ -26,11 +26,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data3"
-log_dir = os.path.join(dir_name, "sevent_que_gen5")
-save_dir = os.path.join(dir_name, "smodel_que_gen5")
+target_dir = "data2"
+log_dir = os.path.join(dir_name, "sevent_que_gen2")
+save_dir = os.path.join(dir_name, "smodel_que_gen2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "sanswer_que_gen5")
+answer_dir = os.path.join(dir_name, "sanswer_que_gen2")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -69,7 +69,7 @@ flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when pr
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
 flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
-flags.DEFINE_boolean("use_pointer", False, "Use pointer network or not")
+flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
@@ -117,15 +117,15 @@ flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the m
 flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
-flags.DEFINE_float("ml_learning_rate", 0.0005, "Learning rate")
+flags.DEFINE_float("ml_learning_rate", 0.0001, "Learning rate")
 flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
 flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
-flags.DEFINE_float("l2_norm", 1.0, "L2 norm scale")
+flags.DEFINE_float("l2_norm", 3e-7, "L2 norm scale")
 flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
-flags.DEFINE_integer("model_encoder_layers", 3, "The number of model encoder")
+flags.DEFINE_integer("model_encoder_layers", 1, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_blocks", 1, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_convs", 2, "The number of model encoder")
 flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
