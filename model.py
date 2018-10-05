@@ -1,5 +1,5 @@
 import tensorflow as tf
-from layers import regular, initializer, total_params
+from layers import regularizer, initializer, total_params
 from qanet import QANetModel, QANetGenerator, QANetRLGenerator
 from transformer import TransformerModel
 
@@ -88,7 +88,7 @@ class Model(object):
 
             if config.l2_norm is not None:
                 variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
-                l2_loss = tf.contrib.layers.apply_regularization(regular(config.l2_norm), variables)
+                l2_loss = tf.contrib.layers.apply_regularization(regularizer, variables)
                 self.loss += l2_loss
 
             if config.decay is not None:

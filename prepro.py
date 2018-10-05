@@ -97,7 +97,8 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                             context_tokens_tmp.append(token)
                             if i == y2s[0]:
                                 context_tokens_tmp.append("--EOS--")
-                    example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens, "context_chars": context_chars,
+                    example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens,
+                               "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
                                "y1s": y1s, "y2s": y2s, "id": total}
@@ -282,7 +283,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
                 ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
                     if wid == 1 and token in example["context_tokens"] else wid
             else:
-                context_idxs[i] = wid
+                ques_idxs[i] = wid
 
         for i, token in enumerate(example["ans_tokens"][0]):
             wid = _get_word(token, i)

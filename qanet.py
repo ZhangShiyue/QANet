@@ -1,5 +1,5 @@
 import tensorflow as tf
-from layers import initializer, regularizer, residual_block, highway, conv, mask_logits, trilinear, total_params, \
+from layers import residual_block, highway, conv, mask_logits, trilinear, total_params, \
     optimized_trilinear_for_attention, _linear, multihead_attention
 
 
