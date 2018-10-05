@@ -26,11 +26,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data3"
-log_dir = os.path.join(dir_name, "sevent_que_gen2")
-save_dir = os.path.join(dir_name, "smodel_que_gen2")
+target_dir = "data2"
+log_dir = os.path.join(dir_name, "sevent_que_gen3")
+save_dir = os.path.join(dir_name, "smodel_que_gen3")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "sanswer_que_gen2")
+answer_dir = os.path.join(dir_name, "sanswer_que_gen3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -69,7 +69,7 @@ flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when pr
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
 flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
-flags.DEFINE_boolean("use_pointer", False, "Use pointer network or not")
+flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
