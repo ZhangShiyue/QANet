@@ -1,14 +1,14 @@
 import os
 import tensorflow as tf
+from prepro import prepro
+from bprepro import bprepro
+from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
+    test_rerank, test_reranked, tmp
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
 https://github.com/HKUST-KnowComp/R-Net
 '''
-
-from prepro import prepro
-from bprepro import bprepro
-from main import train, train_rl, train_dual, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
 
 flags = tf.flags
 

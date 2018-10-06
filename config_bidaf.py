@@ -6,21 +6,20 @@ This file is taken and modified from R-Net by HKUST-KnowComp
 https://github.com/HKUST-KnowComp/R-Net
 '''
 
-from prepro import prepro
 from bprepro import bprepro
-from main import train, train_rl, train_dual, test, test_beam, test_bleu, test_rerank, test_reranked, tmp
+from main_bidaf import train
 
 flags = tf.flags
 
-# home = os.path.expanduser("/nlp/shiyue/QANet/")
-home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+home = os.path.expanduser("/nlp/shiyue/QANet/")
+# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
-model_name = "FRC"
+model_name = "BiDAF"
 dir_name = os.path.join(train_dir, model_name)
 if not os.path.exists(train_dir):
     os.mkdir(train_dir)
@@ -60,14 +59,9 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "QANetGenerator", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
-flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
-flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
-flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
-flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
-flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
 flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
@@ -95,11 +89,6 @@ flags.DEFINE_string("baseline_file", baseline_file, "baseline f1 scores")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
-flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answers")
-flags.DEFINE_string("beam_search_file", beam_search_file, "Test data with candidate answers")
-flags.DEFINE_string("rerank_meta", rerank_meta, "Test data with candidate answers")
-flags.DEFINE_string("listener_score_file", listener_score_file, "Test data with candidate answers")
-
 flags.DEFINE_integer("capacity", 15000, "Batch size of dataset shuffle")
 flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
@@ -117,7 +106,6 @@ flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
 flags.DEFINE_float("ml_learning_rate", 0.0001, "Learning rate")
-flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
 flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 1.0, "L2 norm scale")
 flags.DEFINE_integer("hidden", 128, "Hidden size")
@@ -159,32 +147,8 @@ def main(_):
     config = flags.FLAGS
     if config.mode == "train":
         train(config)
-    elif config.mode == "train_rl":
-        train_rl(config)
-    elif config.mode == "train_dual":
-        train_dual(config)
     elif config.mode == "prepro":
-        prepro(config)
-    elif config.mode == "bprepro":
         bprepro(config)
-    elif config.mode == "debug":
-        config.num_steps = 2
-        config.val_num_batches = 1
-        config.checkpoint = 1
-        config.period = 1
-        train(config)
-    elif config.mode == "test":
-        test(config)
-    elif config.mode == "test_beam":
-        test_beam(config)
-    elif config.mode == "test_bleu":
-        test_bleu(config)
-    elif config.mode == "test_rerank":
-        test_rerank(config)
-    elif config.mode == "test_reranked":
-        test_reranked(config)
-    elif config.mode == "tmp":
-        tmp(config)
     else:
         print("Unknown mode")
         exit(0)
