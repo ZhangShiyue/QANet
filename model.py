@@ -1,7 +1,7 @@
 import tensorflow as tf
 from layers import regularizer, initializer, total_params
 from qanet import QANetModel, QANetGenerator, QANetRLGenerator
-from transformer import TransformerModel
+from bidaf import BiDAFModel
 
 
 class Model(object):
@@ -55,6 +55,14 @@ class Model(object):
                                    config.hidden, config.char_dim, config.glove_dim, config.num_heads,
                                    config.model_encoder_layers, config.model_encoder_blocks,
                                    config.model_encoder_convs, config.input_encoder_convs)
+                self.loss, self.batch_loss = model.build_model(self.global_step)
+                self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
+                self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
+                                     tf.log(tf.cast(self.global_step, tf.float32) + 1))
+            elif model_tpye == "BiDAFModel":
+                model = BiDAFModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
+                                   self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.AL,
+                                   self.CL, config.hidden, config.char_dim, config.glove_dim)
                 self.loss, self.batch_loss = model.build_model(self.global_step)
                 self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *

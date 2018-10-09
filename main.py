@@ -379,11 +379,11 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
         c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(next_element)
-        if model_tpye == "QANetModel" or model_tpye == "TransformerModel":
+        if model_tpye == "QANetModel" or model_tpye == "BiDAFModel":
             loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
                                         feed_dict={model.c: c, model.q: q, model.a: a,
-                                                     model.ch: ch, model.qh: qh, model.ah: ah,
-                                                     model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+                                                   model.ch: ch, model.qh: qh, model.ah: ah,
+                                                   model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             yp1 = map(lambda x: x[0], byp1)
             yp2 = map(lambda x: x[0], byp2)
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)

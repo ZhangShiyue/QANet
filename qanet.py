@@ -2,12 +2,10 @@ import tensorflow as tf
 from layers import residual_block, highway, conv, mask_logits, trilinear, total_params, \
     optimized_trilinear_for_attention, _linear, multihead_attention
 
-
-class QANetModel(object):
+class BasicModel(object):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
-                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit,
-                 char_limit, hidden, char_dim, word_dim, num_head, model_encoder_layers,
-                 model_encoder_blocks, model_encoder_convs, input_encoder_convs):
+                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim):
         self.c = context
         self.c_mask = context_mask
         self.ch = context_char
@@ -23,12 +21,81 @@ class QANetModel(object):
         self.N = batch_size
         self.PL = para_limit
         self.QL = ques_limit
+        self.AL = ans_limit
         self.CL = char_limit
         self.d = hidden
         self.dc = char_dim
         self.dw = word_dim
-        self.nh = num_head
 
+    def input_embedding(self):
+        with tf.variable_scope("Input_Embedding_Layer"):
+            ch_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.ch), [self.N * self.PL, self.CL, self.dc])
+            qh_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.qh), [self.N * self.QL, self.CL, self.dc])
+            ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
+            qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
+
+            # Bidaf style conv-highway encoder
+            ch_emb = conv(ch_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
+                          reuse=None)
+            qh_emb = conv(qh_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
+                          reuse=True)
+
+            ch_emb = tf.reduce_max(ch_emb, axis=1)
+            qh_emb = tf.reduce_max(qh_emb, axis=1)
+
+            ch_emb = tf.reshape(ch_emb, [self.N, self.PL, ch_emb.shape[-1]])
+            qh_emb = tf.reshape(qh_emb, [self.N, self.QL, qh_emb.shape[-1]])
+
+            c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.c), 1.0 - self.dropout)
+            q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.q), 1.0 - self.dropout)
+
+            c_emb = tf.concat([c_emb, ch_emb], axis=2)
+            q_emb = tf.concat([q_emb, qh_emb], axis=2)
+
+            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
+            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
+
+            return c_emb, q_emb
+
+    def bidaf_attention(self, c, q):
+        with tf.variable_scope("BiDAF"):
+            # BiDAF
+            C = tf.tile(tf.expand_dims(c, 2), [1, 1, self.QL, 1])
+            Q = tf.tile(tf.expand_dims(q, 1), [1, self.PL, 1, 1])
+            S = trilinear([C, Q, C * Q], input_keep_prob=1.0 - self.dropout)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs = [c, self.c2q, c * self.c2q, c * self.q2c]
+            return attention_outputs
+
+    def optimized_bidaf_attention(self, c, q):
+        with tf.variable_scope("BiDAF"):
+            S = optimized_trilinear_for_attention([c, q], self.PL, self.QL, input_keep_prob=1.0 - self.dropout)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs = [c, self.c2q, c * self.c2q, c * self.q2c]
+            return attention_outputs
+
+
+class QANetModel(BasicModel):
+    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
+                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim, num_head, model_encoder_layers,
+                 model_encoder_blocks, model_encoder_convs, input_encoder_convs):
+        BasicModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
+                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim)
+        self.nh = num_head
         self.model_encoder_layers = model_encoder_layers
         self.model_encoder_blocks = model_encoder_blocks
         self.model_encoder_convs = model_encoder_convs
@@ -55,7 +122,7 @@ class QANetModel(object):
     def sample(self, beam_size):
         outer = tf.matmul(tf.expand_dims(tf.nn.softmax(self.logits1), axis=2),
                           tf.expand_dims(tf.nn.softmax(self.logits2), axis=1))
-        outer = tf.matrix_band_part(outer, 0, self.QL)
+        outer = tf.matrix_band_part(outer, 0, self.AL)
         bprobs, bindex = tf.nn.top_k(tf.reshape(outer, [-1, self.PL * self.PL]), k=beam_size)
         byp1 = bindex // self.PL
         byp2 = bindex % self.PL
@@ -182,16 +249,16 @@ class QANetGenerator(QANetModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, num_words, dropout, batch_size,
                  para_limit, ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_head,
-                 model_encoder_layers, model_encoder_blocks, model_encoder_convs, input_encoder_convs, use_pointer):
+                 model_encoder_layers, model_encoder_blocks, model_encoder_convs,
+                 input_encoder_convs, use_pointer=True):
         QANetModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
-                            y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, char_limit, hidden,
-                            char_dim, word_dim, num_head, model_encoder_layers, model_encoder_blocks,
-                            model_encoder_convs, input_encoder_convs)
+                            y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                            char_limit, hidden, char_dim, word_dim, num_head, model_encoder_layers,
+                            model_encoder_blocks, model_encoder_convs, input_encoder_convs)
         self.a = answer
         self.a_mask = answer_mask
         self.ah = ans_char
         self.cell = tf.nn.rnn_cell.LSTMCell(hidden)
-        self.AL = ans_limit
         self.NV = num_words
         self.NVP = self.NV + self.PL
         self.use_pointer = use_pointer
