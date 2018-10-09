@@ -25,7 +25,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data1"
+target_dir = "data"
 log_dir = os.path.join(dir_name, "event")
 save_dir = os.path.join(dir_name, "model")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
