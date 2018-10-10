@@ -1,7 +1,7 @@
 import tensorflow as tf
 from layers import regularizer, initializer, total_params
 from qanet import QANetModel, QANetGenerator, QANetRLGenerator
-from bidaf import BiDAFModel
+from bidaf import BiDAFModel, BiDAFGenerator
 
 
 class Model(object):
@@ -51,8 +51,8 @@ class Model(object):
 
             if model_tpye == "QANetModel":
                 model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
-                                   self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.CL,
-                                   config.hidden, config.char_dim, config.glove_dim, config.num_heads,
+                                   self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.AL,
+                                   self.CL, config.hidden, config.char_dim, config.glove_dim, config.num_heads,
                                    config.model_encoder_layers, config.model_encoder_blocks,
                                    config.model_encoder_convs, config.input_encoder_convs)
                 self.loss, self.batch_loss = model.build_model(self.global_step)
@@ -75,6 +75,15 @@ class Model(object):
                                        config.glove_dim, config.num_heads, config.model_encoder_layers,
                                        config.model_encoder_blocks, config.model_encoder_convs,
                                        config.input_encoder_convs, config.use_pointer)
+                self.loss = model.build_model(self.global_step)
+                self.symbols = model.sample(config.beam_size)
+                self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
+                                     tf.log(tf.cast(self.global_step, tf.float32) + 1))
+            elif model_tpye == "BiDAFGenerator":
+                model = BiDAFGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
+                                       self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
+                                       self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
+                                       config.glove_dim, self.num_words)
                 self.loss = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *

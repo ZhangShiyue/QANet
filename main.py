@@ -402,13 +402,13 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
     metrics["f1s"] = f1s
-    if is_test:
+    if is_test and not is_answer:
         bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
         rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
         # meteor = evaluate_meteor(eval_file, answer_dict, is_answer=is_answer)
         return metrics, bleus, rougeL
     else:
-        return metrics
+        return metrics, None, None
 
 
 def test(config):
@@ -430,8 +430,7 @@ def test(config):
     print("Loading model...")
     with graph.as_default() as g:
         test_iterator = get_dataset(config.test_record_file, get_record_parser(
-                config, config.test_ques_limit, config.test_ans_limit, is_test=True),
-                                    config, is_test=True).make_one_shot_iterator()
+                config, is_test=True), config, is_test=True).make_one_shot_iterator()
         model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=False,
                       is_answer=config.is_answer, graph=g)
         sess_config = tf.ConfigProto(allow_soft_placement=True)
@@ -439,13 +438,13 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(6, config.num_steps / 10000 + 1):
-                checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*10000)
+            for ckpt in range(11, config.num_steps / config.checkpoint + 1):
+                checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
                 saver.restore(sess, checkpoint)
-                if config.decay < 1.0:
-                    sess.run(model.assign_vars)
+                # if config.decay < 1.0:
+                #     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
                 metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
@@ -459,12 +458,13 @@ def test(config):
                 em_sum = tf.Summary(value=[tf.Summary.Value(
                         tag="{}/em".format("test"), simple_value=metrics["exact_match"]), ])
                 writer.add_summary(em_sum, global_step)
-                bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
-                writer.add_summary(bleu_sum, global_step)
-                rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                        tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
-                writer.add_summary(rougeL_sum, global_step)
+                if not config.is_answer:
+                    bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                    writer.add_summary(bleu_sum, global_step)
+                    rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
+                    writer.add_summary(rougeL_sum, global_step)
                 # meteor_sum = tf.Summary(value=[tf.Summary.Value(
                 #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
                 # writer.add_summary(meteor_sum, global_step)
