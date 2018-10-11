@@ -16,7 +16,7 @@ home = os.path.expanduser("/nlp/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
-glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
+glove_word_file = os.path.join(home, "glove", "glove.6B.100d.txt")
 
 train_dir = "train"
 model_name = "BiDAF"
@@ -25,7 +25,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_que2"
+target_dir = "data_que3"
 log_dir = os.path.join(dir_name, "event_que3")
 save_dir = os.path.join(dir_name, "model_que3")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
@@ -108,7 +108,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 20000, "Number of steps")
+flags.DEFINE_integer("num_steps", 30000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 20000, "period to save batch loss")
@@ -138,7 +138,7 @@ flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
 flags.DEFINE_integer("vocab_count_limit", 10, "Minimum count of words in the vocab")
 flags.DEFINE_integer("char_count_limit", 50, "Minimum count of chars in the char vocab")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
-flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
+flags.DEFINE_integer("glove_dim", 100, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
