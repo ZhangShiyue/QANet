@@ -83,7 +83,7 @@ class BiDAFModel(BasicModel):
 class BiDAFGenerator(BiDAFModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                  answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit,
-                 ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_words, use_pointer=False):
+                 ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_words, use_pointer):
         BiDAFModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
                             char_limit, hidden, char_dim, word_dim)
@@ -92,7 +92,7 @@ class BiDAFGenerator(BiDAFModel):
         self.a_mask = answer_mask
         self.NV = num_words
         self.NVP = num_words + self.PL
-        self.loop_function = self._loop_function_nopointer
+        self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
 
     def build_model(self, global_step):
@@ -171,7 +171,7 @@ class BiDAFGenerator(BiDAFModel):
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
                         einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen,
-                                                                                   prev_probs, i)
+                                                                                  prev_probs, i)
                         h = tf.gather_nd(h, index)  # update prev state
                         state = tuple(tf.gather_nd(s, index) for s in state)  # update prev state
                         for j, symbol in enumerate(symbols):
@@ -190,7 +190,7 @@ class BiDAFGenerator(BiDAFModel):
                 # update cell state
                 cinp = tf.concat([einp, attn], -1)
                 h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d]),
-                                     tuple(tf.reshape(s, [-1, self.d]) for s in state))
+                                         tuple(tf.reshape(s, [-1, self.d]) for s in state))
                 h = tf.reshape(h, [self.N, -1, self.d])
                 state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state)
 
@@ -240,6 +240,38 @@ class BiDAFGenerator(BiDAFModel):
 
         # embedding_lookup
         emb_prev = tf.nn.embedding_lookup(self.word_mat, prev_symbol)
+
+        return emb_prev, probs, index, prev_symbol
+
+    def _loop_function(self, beam_size, prev, attn_w, p_gen, prev_probs, i):
+        dim = 1 if i == 1 else beam_size
+        # scatter attention probs
+        bc = tf.tile(tf.expand_dims(self.c, 1), [1, dim, 1])  # batch_size * beam_size * PL
+        batch_nums_c = tf.tile(tf.reshape(tf.range(self.N), [self.N, 1, 1]), [1, dim, self.PL])
+        beam_size_c = tf.tile(tf.reshape(tf.range(dim), [1, dim, 1]), [self.N, 1, self.PL])
+        indices_c = tf.stack((batch_nums_c, beam_size_c, bc), axis=3)
+        dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NVP])
+        # combine generation probs and copy probs
+        logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
+        logit = tf.reshape(logit, [self.N, dim, -1])
+        plus_logit = tf.zeros([self.N, dim, self.PL]) - 1e30
+        logit = tf.concat([logit, plus_logit], axis=-1)
+        dist_g = tf.nn.softmax(logit)
+        final_dist = tf.log(p_gen * dist_g + (1 - p_gen) * dist_c)
+        # beam search
+        prev_probs = tf.expand_dims(prev_probs, -1)
+        prev = final_dist + prev_probs  # batch_size * dim * NVP
+        prev = tf.reshape(prev, [self.N, -1])  # batch_size * (dim * NVP)
+        probs, prev_symbolb = tf.nn.top_k(prev, beam_size)  # batch_size * beam_size
+        index = prev_symbolb // self.NVP
+        bindex = tf.tile(tf.expand_dims(tf.range(self.N), -1), [1, beam_size])
+        index = tf.stack((bindex, index), axis=2)
+        prev_symbol = prev_symbolb % self.NVP
+
+        # embedding_lookup
+        plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
+        emb_prev = tf.nn.embedding_lookup(tf.concat([self.word_mat, plus_word_mat], axis=0), prev_symbol)
+        # emb_prev = tf.nn.embedding_lookup(self.word_mat, prev_symbol)
 
         return emb_prev, probs, index, prev_symbol
 

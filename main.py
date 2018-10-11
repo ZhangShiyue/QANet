@@ -73,7 +73,7 @@ def train(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    metrics = evaluate_batch(config, model, config.val_num_batches,
+                    metrics, _, _ = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -86,7 +86,7 @@ def train(config):
                             tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
                     writer.add_summary(em_sum, global_step)
 
-                    metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                    metrics, _, _ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                              dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -388,7 +388,7 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             yp2 = map(lambda x: x[0], byp2)
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
-        elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator":
+        elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator" or model_tpye == "BiDAFGenerator":
             loss, symbols = sess.run([model.loss, model.symbols],
                                      feed_dict={model.c: c, model.q: q if config.is_answer else a,
                                                 model.a: a if config.is_answer else q,
