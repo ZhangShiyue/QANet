@@ -438,7 +438,7 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(11, config.num_steps / config.checkpoint + 1):
+            for ckpt in range(15, config.num_steps / config.checkpoint + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
