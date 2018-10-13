@@ -33,7 +33,7 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter, char_counter, answer_notation=False, lower_word=False):
+def process_file(filename, data_type, word_counter, char_counter, lower_word=False):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
@@ -89,22 +89,25 @@ def process_file(filename, data_type, word_counter, char_counter, answer_notatio
                         y1, y2 = answer_span[0], answer_span[-1]
                         y1s.append(y1)
                         y2s.append(y2)
-                    if answer_notation:
-                        context_tokens_tmp = []
-                        for i, token in enumerate(context_tokens):
-                            if i == y1s[0]:
-                                context_tokens_tmp.append("--GO--")
-                            context_tokens_tmp.append(token)
-                            if i == y2s[0]:
-                                context_tokens_tmp.append("--EOS--")
-                    example = {"context_tokens": context_tokens_tmp if answer_notation else context_tokens,
-                               "context_chars": context_chars,
+                    context_tokens_tmp = []
+                    context_chars_tmp = []
+                    for i, token in enumerate(context_tokens):
+                        if i == y1s[0]:
+                            context_tokens_tmp.append("--GO--")
+                            context_chars_tmp.append(list("--GO--"))
+                        context_tokens_tmp.append(token)
+                        context_chars_tmp.append(list(token))
+                        if i == y2s[0]:
+                            context_tokens_tmp.append("--EOS--")
+                            context_chars_tmp.append(list("--EOS--"))
+                    example = {"context_tokens_ans": context_tokens_tmp, "context_tokens": context_tokens,
+                               "context_chars_ans": context_chars_tmp, "context_chars": context_chars,
                                "ques_tokens": ques_tokens, "ques_chars": ques_chars,
                                "ans_tokens": answer_tokens, "ans_chars": answer_chars,
                                "y1s": y1s, "y2s": y2s, "id": total}
                     examples.append(example)
                     eval_examples[str(total)] = {
-                        "context": context, "context_tokens": context_tokens_tmp if answer_notation else context_tokens,
+                        "context": context, "context_tokens_ans": context_tokens_tmp, "context_tokens": context_tokens,
                         "spans": spans, "questions": [ques], "answers": answer_texts, "uuid": qa["id"]}
         random.shuffle(examples)
         print("{} questions in total".format(len(examples)))
@@ -224,14 +227,14 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 
 
 def build_features(config, examples, data_type, out_file, word2idx_dict,
-                   char2idx_dict, is_test=False, answer_notation=False):
+                   char2idx_dict, is_test=False):
     para_limit = config.test_para_limit if is_test else config.para_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
     ans_limit = config.test_ans_limit if is_test else config.ans_limit
     char_limit = config.char_limit
 
     def filter_func(example, is_test=False):
-        return len(example["context_tokens"]) > para_limit or \
+        return len(example["context_tokens_ans"]) > para_limit or \
                len(example["ques_tokens"]) > ques_limit or \
                len(example["ans_tokens"][0]) > ans_limit
 
@@ -248,8 +251,11 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
 
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
+        context_idxs_ans = np.zeros([para_limit], dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
+        context_char_idxs_ans = np.zeros([para_limit, char_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
+        ques_idxs_ans = np.zeros([ques_limit], dtype=np.int32)
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ans_char_idxs = np.zeros([ans_limit, char_limit], dtype=np.int32)
@@ -277,21 +283,29 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
             else:
                 context_idxs[i] = wid
 
+        for i, token in enumerate(example["context_tokens_ans"]):
+            wid = _get_word(token, i)
+            if config.use_pointer:
+                context_idxs_ans[i] = len(word2idx_dict) + i if wid == 1 else wid
+            else:
+                context_idxs_ans[i] = wid
+
         for i, token in enumerate(example["ques_tokens"]):
             wid = _get_word(token, i)
             if config.use_pointer:
                 ques_idxs[i] = len(word2idx_dict) + example["context_tokens"].index(token) \
                     if wid == 1 and token in example["context_tokens"] else wid
+                ques_idxs_ans[i] = len(word2idx_dict) + example["context_tokens_ans"].index(token) \
+                    if wid == 1 and token in example["context_tokens_ans"] else wid
             else:
                 ques_idxs[i] = wid
+                ques_idxs_ans[i] = wid
 
         for i, token in enumerate(example["ans_tokens"][0]):
             wid = _get_word(token, i)
             if config.use_pointer:
-                if answer_notation:
-                    ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
-                else:
-                    ans_idxs[i] = len(word2idx_dict) + start + i - 1 if wid == 1 else wid
+                # there are GO and EOS in context
+                ans_idxs[i] = len(word2idx_dict) + start + i if wid == 1 else wid
             else:
                 ans_idxs[i] = wid
 
@@ -300,6 +314,12 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
                 if j == char_limit:
                     break
                 context_char_idxs[i, j] = _get_char(char)
+
+        for i, token in enumerate(example["context_chars_ans"]):
+            for j, char in enumerate(token):
+                if j == char_limit:
+                    break
+                context_char_idxs_ans[i, j] = _get_char(char)
 
         for i, token in enumerate(example["ques_chars"]):
             for j, char in enumerate(token):
@@ -315,9 +335,12 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
 
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
+            "context_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs_ans.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
+            "ques_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs_ans.tostring()])),
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
             "context_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs.tostring()])),
+            "context_char_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_char_idxs_ans.tostring()])),
             "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
             "ans_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_char_idxs.tostring()])),
             "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
@@ -341,11 +364,11 @@ def save(filename, obj, message=None):
 def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
-            char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
+            char_counter, lower_word=config.lower_word)
     dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-            char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
+            char_counter, lower_word=config.lower_word)
     test_examples, test_eval = process_file(config.test_file, "test", word_counter,
-            char_counter, answer_notation=config.answer_notation, lower_word=config.lower_word)
+            char_counter, lower_word=config.lower_word)
 
     word_emb_file = config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None
@@ -359,12 +382,10 @@ def prepro(config):
             size=char_emb_size, vec_size=char_emb_dim, limit=config.char_count_limit)
     print len(char2idx_dict)
 
-    build_features(config, train_examples, "train", config.train_record_file, word2idx_dict,
-                   char2idx_dict, answer_notation=config.answer_notation)
-    dev_meta = build_features(config, dev_examples, "dev", config.dev_record_file, word2idx_dict, char2idx_dict,
-                              answer_notation=config.answer_notation)
+    build_features(config, train_examples, "train", config.train_record_file, word2idx_dict, char2idx_dict)
+    dev_meta = build_features(config, dev_examples, "dev", config.dev_record_file, word2idx_dict, char2idx_dict)
     test_meta = build_features(config, test_examples, "test", config.test_record_file, word2idx_dict, char2idx_dict,
-                               is_test=True, answer_notation=config.answer_notation)
+                               is_test=True)
 
     save(config.word_emb_file, word_emb_mat, message="word embedding")
     save(config.char_emb_file, char_emb_mat, message="char embedding")

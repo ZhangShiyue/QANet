@@ -11,12 +11,12 @@ https://github.com/HKUST-KnowComp/R-Net
 
 flags = tf.flags
 
-home = os.path.expanduser("/nlp/shiyue/QANet/")
-# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+# home = os.path.expanduser("/nlp/shiyue/QANet/")
+home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
-glove_word_file = os.path.join(home, "glove", "glove.6B.100d.txt")
+glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
 model_name = "BiDAF"
@@ -25,7 +25,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_que3"
+target_dir = "data_que"
 log_dir = os.path.join(dir_name, "event_que3")
 save_dir = os.path.join(dir_name, "model_que3")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
@@ -133,12 +133,11 @@ flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
 flags.DEFINE_string("glove_char_file", glove_char_file, "Glove character embedding source file")
 flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained character embedding")
-flags.DEFINE_boolean("answer_notation", True, "Whether to notate answer's position in context")
 flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
-flags.DEFINE_integer("vocab_count_limit", 10, "Minimum count of words in the vocab")
-flags.DEFINE_integer("char_count_limit", 50, "Minimum count of chars in the char vocab")
+flags.DEFINE_integer("vocab_count_limit", -1, "Minimum count of words in the vocab")
+flags.DEFINE_integer("char_count_limit", -1, "Minimum count of chars in the char vocab")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
-flags.DEFINE_integer("glove_dim", 100, "Embedding dimension for Glove")
+flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
