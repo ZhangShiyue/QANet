@@ -13,49 +13,43 @@ https://github.com/HKUST-KnowComp/R-Net
 '''
 
 
-def get_record_parser(config, is_test=False, is_rerank=False):
+def get_record_parser(config, is_test=False):
     def parse(example):
         para_limit = config.test_para_limit if is_test else config.para_limit
         ques_limit = config.test_ques_limit if is_test else config.ques_limit
         ans_limit = config.test_ans_limit if is_test else config.ans_limit
         char_limit = config.char_limit
 
-        if is_rerank:
-            features = tf.parse_single_example(example,
-                                               features={
-                                                   "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ques_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ans_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "context_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ques_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ans_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "y1": tf.FixedLenFeature([], tf.string),
-                                                   "y2": tf.FixedLenFeature([], tf.string),
-                                                   "id": tf.FixedLenFeature([], tf.int64),
-                                                   "cid": tf.FixedLenFeature([], tf.int64)
-                                               })
-        else:
-            features = tf.parse_single_example(example,
-                                               features={
-                                                   "context_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ques_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ans_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "context_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ques_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "ans_char_idxs": tf.FixedLenFeature([], tf.string),
-                                                   "y1": tf.FixedLenFeature([], tf.string),
-                                                   "y2": tf.FixedLenFeature([], tf.string),
-                                                   "id": tf.FixedLenFeature([], tf.int64)
-                                               })
+        features = tf.parse_single_example(example,
+                                           features={
+                                               "context_idxs": tf.FixedLenFeature([], tf.string),
+                                               "context_idxs_ans": tf.FixedLenFeature([], tf.string),
+                                               "ques_idxs": tf.FixedLenFeature([], tf.string),
+                                               "ques_idxs_ans": tf.FixedLenFeature([], tf.string),
+                                               "ans_idxs": tf.FixedLenFeature([], tf.string),
+                                               "context_char_idxs": tf.FixedLenFeature([], tf.string),
+                                               "context_char_idxs_ans": tf.FixedLenFeature([], tf.string),
+                                               "ques_char_idxs": tf.FixedLenFeature([], tf.string),
+                                               "ans_char_idxs": tf.FixedLenFeature([], tf.string),
+                                               "y1": tf.FixedLenFeature([], tf.string),
+                                               "y2": tf.FixedLenFeature([], tf.string),
+                                               "id": tf.FixedLenFeature([], tf.int64)
+                                           })
 
         context_idxs = tf.reshape(tf.decode_raw(
                 features["context_idxs"], tf.int32), [para_limit])
+        context_idxs_ans = tf.reshape(tf.decode_raw(
+                features["context_idxs_ans"], tf.int32), [para_limit])
         ques_idxs = tf.reshape(tf.decode_raw(
                 features["ques_idxs"], tf.int32), [ques_limit])
+        ques_idxs_ans = tf.reshape(tf.decode_raw(
+                features["ques_idxs_ans"], tf.int32), [ques_limit])
         ans_idxs = tf.reshape(tf.decode_raw(
                 features["ans_idxs"], tf.int32), [ans_limit])
         context_char_idxs = tf.reshape(tf.decode_raw(
                 features["context_char_idxs"], tf.int32), [para_limit, char_limit])
+        context_char_idxs_ans = tf.reshape(tf.decode_raw(
+                features["context_char_idxs_ans"], tf.int32), [para_limit, char_limit])
         ques_char_idxs = tf.reshape(tf.decode_raw(
                 features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
         ans_char_idxs = tf.reshape(tf.decode_raw(
@@ -65,55 +59,9 @@ def get_record_parser(config, is_test=False, is_rerank=False):
         y2 = tf.reshape(tf.decode_raw(
                 features["y2"], tf.float32), [para_limit])
         qa_id = features["id"]
-        if is_rerank:
-            can_id = features["cid"]
-            return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, ans_char_idxs, y1, y2, qa_id, can_id
-        else:
-            return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, ans_char_idxs, y1, y2, qa_id
 
-    return parse
-
-
-def get_record_parser_bidaf(config, is_test=False):
-    def parse(example):
-        num_sent_limit = config.test_num_sent_limit if is_test else config.num_sent_limit
-        sent_limit = config.test_sent_limit if is_test else config.sent_limit
-        ques_limit = config.test_ques_limit if is_test else config.ques_limit
-        ans_limit = config.test_ans_limit if is_test else config.ans_limit
-        char_limit = config.char_limit
-
-        features = tf.parse_single_example(example,
-                                           features={
-                                               "context_idxs": tf.FixedLenFeature([], tf.string),
-                                               "ques_idxs": tf.FixedLenFeature([], tf.string),
-                                               "ans_idxs": tf.FixedLenFeature([], tf.string),
-                                               "context_char_idxs": tf.FixedLenFeature([], tf.string),
-                                               "ques_char_idxs": tf.FixedLenFeature([], tf.string),
-                                               "ans_char_idxs": tf.FixedLenFeature([], tf.string),
-                                               "y1": tf.FixedLenFeature([], tf.string),
-                                               "y2": tf.FixedLenFeature([], tf.string),
-                                               "id": tf.FixedLenFeature([], tf.int64)
-                                           })
-
-        context_idxs = tf.reshape(tf.decode_raw(
-                features["context_idxs"], tf.int32), [num_sent_limit, sent_limit])
-        ques_idxs = tf.reshape(tf.decode_raw(
-                features["ques_idxs"], tf.int32), [ques_limit])
-        ans_idxs = tf.reshape(tf.decode_raw(
-                features["ans_idxs"], tf.int32), [ans_limit])
-        context_char_idxs = tf.reshape(tf.decode_raw(
-                features["context_char_idxs"], tf.int32), [num_sent_limit, sent_limit, char_limit])
-        ques_char_idxs = tf.reshape(tf.decode_raw(
-                features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
-        ans_char_idxs = tf.reshape(tf.decode_raw(
-                features["ans_char_idxs"], tf.int32), [ans_limit, char_limit])
-        y1 = tf.reshape(tf.decode_raw(
-                features["y1"], tf.float32), [num_sent_limit, sent_limit])
-        y2 = tf.reshape(tf.decode_raw(
-                features["y2"], tf.float32), [num_sent_limit, sent_limit])
-        qa_id = features["id"]
-
-        return context_idxs, ques_idxs, ans_idxs, context_char_idxs, ques_char_idxs, ans_char_idxs, y1, y2, qa_id
+        return context_idxs, context_idxs_ans, ques_idxs, ques_idxs_ans, ans_idxs, context_char_idxs, \
+               context_char_idxs_ans, ques_char_idxs, ans_char_idxs, y1, y2, qa_id
 
     return parse
 

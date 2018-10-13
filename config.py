@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_que"
-log_dir = os.path.join(dir_name, "event_que3")
-save_dir = os.path.join(dir_name, "model_que3")
+target_dir = "data_new"
+log_dir = os.path.join(dir_name, "event_qa")
+save_dir = os.path.join(dir_name, "model_qa")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "answer_que3")
+answer_dir = os.path.join(dir_name, "answer_qa")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -59,15 +59,15 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
-flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
+flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
@@ -113,7 +113,7 @@ flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the mo
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 20000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
-flags.DEFINE_float("dropout", 0.2, "Dropout prob across the layers")
+flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
 flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
