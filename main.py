@@ -58,27 +58,25 @@ def train(config):
             global_step = max(sess.run(model.global_step), 1)
             train_next_element = train_iterator.get_next()
             for _ in tqdm(range(global_step, config.num_steps + 1)):
-                global_step = sess.run(model.global_step) + 1
-                c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
-                loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
-                    model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
-                    model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
-                    model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
-                if global_step % config.period == 0:
-                    loss_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="model/loss", simple_value=loss), ])
-                    writer.add_summary(loss_sum, global_step)
+                # global_step = sess.run(model.global_step) + 1
+                # c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+                # loss, _ = sess.run([model.loss, model.train_op], feed_dict={
+                #     model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                #     model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                #     model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                #     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
+                # if global_step % config.period == 0:
+                #     loss_sum = tf.Summary(value=[tf.Summary.Value(
+                #             tag="model/loss", simple_value=loss), ])
+                #     writer.add_summary(loss_sum, global_step)
                 if global_step % config.checkpoint == 0:
-                    filename = os.path.join(
-                            config.save_dir, "model_{}.ckpt".format(global_step))
-                    saver.save(sess, filename)
+                    # filename = os.path.join(
+                    #         config.save_dir, "model_{}.ckpt".format(global_step))
+                    # saver.save(sess, filename)
 
                     metrics, _, _ = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
-                    # print metrics["loss"], metrics["f1"], metrics["exact_match"]
-                    # exit()
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -102,6 +100,7 @@ def train(config):
                             tag="{}/em".format("dev"), simple_value=metrics["exact_match"]), ])
                     writer.add_summary(em_sum, global_step)
                     writer.flush()
+                    exit()
 
                     dev_f1 = metrics["f1"]
                     dev_em = metrics["exact_match"]

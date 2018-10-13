@@ -116,7 +116,7 @@ def convert_tokens_g(eval_file, qa_id, symbols, id2word):
     remapped_dict = {}
     for qid, syms in zip(qa_id, zip(*symbols)):
         uuid = eval_file[str(qid)]["uuid"]
-        context_tokens = eval_file[str(qid)]["context_tokens"]
+        context_tokens = eval_file[str(qid)]["context_tokens_ans"]
         if 3 in syms:
             syms = syms[:syms.index(3)]
         answer = u' '.join([id2word[sym] if sym in id2word
