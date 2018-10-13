@@ -19,7 +19,7 @@ test_file = os.path.join(home, "squad", "dev-v1.1.json")
 glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
-model_name = "BiDAF"
+model_name = "QANet"
 dir_name = os.path.join(train_dir, model_name)
 if not os.path.exists(train_dir):
     os.mkdir(train_dir)
@@ -59,7 +59,7 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
+flags.DEFINE_string("model_tpye", "QANetGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
