@@ -1,5 +1,5 @@
 import tensorflow as tf
-from layers import conv, mask_logits, _linear, multihead_attention
+from layers import conv, mask_logits, _linear, multihead_attention, vanilla_attention
 from qanet import BasicModel
 
 
@@ -81,9 +81,9 @@ class BiDAFModel(BasicModel):
 
 
 class BiDAFGenerator(BiDAFModel):
-    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
-                 answer, answer_mask, ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit,
-                 ques_limit, ans_limit, char_limit, hidden, char_dim, word_dim, num_words, use_pointer):
+    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
+                 ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type):
         BiDAFModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
                             char_limit, hidden, char_dim, word_dim)
@@ -94,6 +94,7 @@ class BiDAFGenerator(BiDAFModel):
         self.NVP = num_words + self.PL
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
+        self.attention_function = multihead_attention if attention_type == "dot" else vanilla_attention
 
     def build_model(self, global_step):
         # word, character embedding
@@ -132,7 +133,7 @@ class BiDAFGenerator(BiDAFModel):
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
-                attn, attn_w = multihead_attention(tf.expand_dims(h, 1), units=self.d, num_heads=1, memory=memory,
+                attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1, memory=memory,
                                                    mask=self.c_mask, bias=False, return_weights=True)
 
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
@@ -182,7 +183,7 @@ class BiDAFGenerator(BiDAFModel):
                             p_gens[j] = tf.gather_nd(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
-                attn, attn_w = multihead_attention(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
+                attn, attn_w = self.attention_function(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
                                                    memory=memory, mask=self.c_mask, bias=False, return_weights=True)
                 attn_w = tf.reshape(attn_w, [self.N, -1, self.PL])
                 attn_ws.append(attn_w)
