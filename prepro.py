@@ -115,7 +115,7 @@ def process_file(filename, data_type, word_counter, char_counter, lower_word=Fal
     return examples, eval_examples
 
 
-def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_size=None, size_limit=0):
+def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_size=None, size_limit=0, lower_word=False):
     print("Generating {} embedding...".format(data_type))
     embedding_dict = {}
     filtered_elements = counter
@@ -131,8 +131,10 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
                 array = line.split()
                 word = "".join(array[0:-vec_size])
                 vector = list(map(float, array[-vec_size:]))
-                if word.lower() in filtered_elements:
-                    embedding_dict[word.lower()] = vector
+                if lower_word:
+                    word.lower()
+                if word in filtered_elements:
+                    embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
                 len(embedding_dict), len(filtered_elements), data_type))
     else:
@@ -376,10 +378,11 @@ def prepro(config):
     char_emb_dim = config.glove_dim if config.pretrained_char else config.char_dim
 
     word_emb_mat, word2idx_dict = get_embedding(word_counter, "word", emb_file=word_emb_file,
-            size=config.glove_word_size, vec_size=config.glove_dim, limit=config.vocab_count_limit)
+                                                size=config.glove_word_size, vec_size=config.glove_dim,
+                                                limit=config.vocab_count_limit, lower_word=config.lower_word)
     print len(word2idx_dict)
     char_emb_mat, char2idx_dict = get_embedding(char_counter, "char", emb_file=char_emb_file,
-            size=char_emb_size, vec_size=char_emb_dim, limit=config.char_count_limit)
+            size=char_emb_size, vec_size=char_emb_dim, limit=config.char_count_limit, lower_word=config.lower_word)
     print len(char2idx_dict)
 
     build_features(config, train_examples, "train", config.train_record_file, word2idx_dict, char2idx_dict)

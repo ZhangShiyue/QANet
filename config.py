@@ -16,7 +16,7 @@ home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
-glove_word_file = os.path.join(home, "glove", "glove.6B.100d.txt")
+glove_word_file = os.path.join(home, "glove", "glove.840B.300d.txt")
 
 train_dir = "train"
 model_name = "BiDAF"
@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new1"
-log_dir = os.path.join(dir_name, "event_qg1")
-save_dir = os.path.join(dir_name, "model_qg1")
+target_dir = "data_new_tmp"
+log_dir = os.path.join(dir_name, "event_qa1")
+save_dir = os.path.join(dir_name, "model_qa1")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "answer_qg1")
+answer_dir = os.path.join(dir_name, "answer_qa1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -59,15 +59,15 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
-flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
+flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
@@ -113,7 +113,7 @@ flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the mo
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 20000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
-flags.DEFINE_float("dropout", 0.2, "Dropout prob across the layers")
+flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
 flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
@@ -133,11 +133,11 @@ flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
 flags.DEFINE_string("glove_char_file", glove_char_file, "Glove character embedding source file")
 flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained character embedding")
-flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
-flags.DEFINE_integer("vocab_count_limit", 10, "Minimum count of words in the vocab")
-flags.DEFINE_integer("char_count_limit", 50, "Minimum count of chars in the char vocab")
+flags.DEFINE_boolean("lower_word", False, "Whether to lower word")
+flags.DEFINE_integer("vocab_count_limit", -1, "Minimum count of words in the vocab")
+flags.DEFINE_integer("char_count_limit", -1, "Minimum count of chars in the char vocab")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
-flags.DEFINE_integer("glove_dim", 100, "Embedding dimension for Glove")
+flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
