@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new"
-log_dir = os.path.join(dir_name, "event_qg2")
-save_dir = os.path.join(dir_name, "model_qg2")
+target_dir = "data_new2"
+log_dir = os.path.join(dir_name, "event_qg")
+save_dir = os.path.join(dir_name, "model_qg")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "answer_qg2")
+answer_dir = os.path.join(dir_name, "answer_qg")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -61,7 +61,7 @@ if not os.path.exists(answer_dir):
 
 flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
-flags.DEFINE_string("attention_tpye", "vanilla", "Model type")
+flags.DEFINE_string("attention_tpye", "dot", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
