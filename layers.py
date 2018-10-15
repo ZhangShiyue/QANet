@@ -381,7 +381,7 @@ def vanilla_attention(queries, units, num_heads,
                      memory=None,
                      seq_len=None,
                      causality=False,
-                     scope="Multi_Head_Attention",
+                     scope="Vanilla_Attention",
                      reuse=None,
                      mask=None,
                      return_weights=False,
@@ -390,12 +390,11 @@ def vanilla_attention(queries, units, num_heads,
     with tf.variable_scope(scope, default_name="vanilla_attention", reuse=reuse):
         v = tf.get_variable("v", units, regularizer=regularizer,
                             initializer=tf.zeros_initializer())
-
         key = tf.expand_dims(conv(memory, 2 * units, name="memory_projection", reuse=reuse), 1)
         K, V = tf.split(key, 2, axis=-1)
         query = tf.expand_dims(conv(queries, units, name="query_projection", reuse=reuse), 2)
 
-        logits = tf.reduce_sum(v * (K + query), [-1])
+        logits = tf.reduce_sum(v * tf.tanh(K + query), [-1])
         if mask is not None:
             mask = tf.cast(tf.expand_dims(mask, 1), tf.int32)
             logits = mask_logits(logits, mask)

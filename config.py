@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new1"
-log_dir = os.path.join(dir_name, "event_qg1")
-save_dir = os.path.join(dir_name, "model_qg1")
+target_dir = "data_new"
+log_dir = os.path.join(dir_name, "event_qg2")
+save_dir = os.path.join(dir_name, "model_qg2")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "answer_qa1")
+answer_dir = os.path.join(dir_name, "answer_qg2")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -61,14 +61,14 @@ if not os.path.exists(answer_dir):
 
 flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
-flags.DEFINE_string("attention_tpye", "dot", "Model type")
+flags.DEFINE_string("attention_tpye", "vanilla", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
 flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
-flags.DEFINE_boolean("word_trainable", True, "Train word embeddings along or not")
+flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
@@ -138,7 +138,7 @@ flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
 flags.DEFINE_integer("vocab_count_limit", -1, "Minimum count of words in the vocab")
 flags.DEFINE_integer("char_count_limit", -1, "Minimum count of chars in the char vocab")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
-flags.DEFINE_integer("glove_dim", 100, "Embedding dimension for Glove")
+flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
