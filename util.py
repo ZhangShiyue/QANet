@@ -405,15 +405,15 @@ def evaluate_rouge_L(eval_file, answer_dict, is_answer=True):
 
 def evaluate_meteor(eval_file, answer_dict, is_answer=True):
     meteor = Meteor()
-    scores = []
+    res, gts = [], []
     for key, value in answer_dict.items():
         ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
-        prediction = value
-        prediction = normalize_answer(prediction)
+        prediction = normalize_answer(value)
         ground_truths = [normalize_answer(ground_truth) for ground_truth in ground_truths]
-        score = meteor.compute_score(prediction, ground_truths)
-        scores.append(score)
-    return np.mean(scores)
+        res.append(prediction)
+        gts.append(ground_truths)
+    score = meteor.compute_score(gts, res)
+    return score
 
 
 if __name__ == '__main__':

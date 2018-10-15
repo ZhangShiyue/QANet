@@ -74,7 +74,7 @@ def train(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    metrics, _, _ = evaluate_batch(config, model, config.val_num_batches,
+                    metrics, _, _, _ = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -87,7 +87,7 @@ def train(config):
                             tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
                     writer.add_summary(em_sum, global_step)
 
-                    metrics, _, _ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
+                    metrics, _, _, _ = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                              dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
@@ -408,10 +408,10 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     if is_test and not is_answer:
         bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
         rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
-        # meteor = evaluate_meteor(eval_file, answer_dict, is_answer=is_answer)
-        return metrics, bleus, rougeL
+        meteor = evaluate_meteor(eval_file, answer_dict, is_answer=is_answer)
+        return metrics, bleus, rougeL, meteor
     else:
-        return metrics, None, None
+        return metrics, None, None, None
 
 
 def test(config):
@@ -449,9 +449,10 @@ def test(config):
                 # if config.decay < 1.0:
                 #     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
-                metrics, bleus, rougeL = evaluate_batch(config, model, total // config.test_batch_size + 1,
+                metrics, bleus, rougeL, meteor = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer, is_test=True)
+
                 loss_sum = tf.Summary(value=[tf.Summary.Value(
                                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])
                 writer.add_summary(loss_sum, global_step)
@@ -468,9 +469,9 @@ def test(config):
                     rougeL_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
                     writer.add_summary(rougeL_sum, global_step)
-                # meteor_sum = tf.Summary(value=[tf.Summary.Value(
-                #         tag="{}/meteor".format("test"), simple_value=meteor*100), ])
-                # writer.add_summary(meteor_sum, global_step)
+                    meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/meteor".format("test"), simple_value=meteor[0]*100), ])
+                    writer.add_summary(meteor_sum, global_step)
                 writer.flush()
 
 
