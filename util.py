@@ -207,8 +207,10 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
                                         np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32)
     for k, (qid, syms, syms_rl) in enumerate(zip(qa_id, zip(*symbols), zip(*symbols_rl))):
         context_tokens = eval_file[str(qid)]["context_tokens_ans"]
+        syms, syms_rl = list(syms), list(syms_rl)
         if 3 in syms:
             syms = syms[:syms.index(3)]
+        syms = [2] + syms[:ques_limit - 2] + [3]
         for i, sym in enumerate(syms):
             ques_idxs[k, i] = sym
             word = id2word[sym] if sym in id2word else context_tokens[sym - len(id2word)]
@@ -218,6 +220,7 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
                 ques_char_idxs[k, i, j] = char2idx_dict[c] if c in char2idx_dict else 1
         if 3 in syms_rl:
             syms_rl = syms_rl[:syms_rl.index(3)]
+        syms_rl = [2] + syms_rl[:ques_limit - 2] + [3]
         for i, sym_rl in enumerate(syms_rl):
             ques_idxs_rl[k, i] = sym_rl
             word = id2word[sym_rl] if sym_rl in id2word else context_tokens[sym_rl - len(id2word)]

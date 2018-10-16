@@ -264,7 +264,7 @@ def train_dual(config):
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, config.ques_limit, config.ans_limit)
+    parser = get_record_parser(config)
     graph = tf.Graph()
     graph_dual = tf.Graph()
     with graph.as_default():
@@ -303,17 +303,19 @@ def train_dual(config):
     train_next_element = train_iterator.get_next()
     for _ in tqdm(range(global_step, config.num_steps + 1)):
         global_step = sess.run(model.global_step) + 1
-        c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+        c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
         if global_step < config.pre_step:
             loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                 model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
         else:
             # samples for reward computing
             symbols, symbols_rl = sess.run([model.symbols, model.symbols_rl], feed_dict={
-                model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                 model.y1: y1, model.y2: y2, model.qa_id: qa_id})
             # format sample for QA
             ques_idxs, ques_char_idxs, ques_idxs_rl, ques_char_idxs_rl = \
@@ -332,10 +334,11 @@ def train_dual(config):
             reward_rl = map(lambda x: np.exp(-x), list(dual_loss))
             reward = np.array(map(lambda x: x[0] - x[1], zip(reward_rl, reward_base)))
             # train with rl
-            sa = np.array(zip(*symbols_rl))
+            sa = format_sampled_questions(symbols_rl, config.batch_size, config.ques_limit)
             loss_ml, _ = sess.run([model.loss_ml, model.train_op], feed_dict={
-                model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                 model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout,
                 model.sa: sa, model.reward: reward})
         if global_step % config.period == 0:
