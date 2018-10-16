@@ -211,8 +211,9 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
 def format_sampled_questions(symbols_rl, batch_size, ques_limit):
     ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32)
     for k, syms_rl in enumerate(zip(*symbols_rl)):
+        syms_rl = list(syms_rl)
         if 3 in syms_rl:
-            syms_rl = list(syms_rl[:syms_rl.index(3)])
+            syms_rl = syms_rl[:syms_rl.index(3)]
         # add GO and EOS in question
         syms_rl = [2] + syms_rl[:ques_limit - 2] + [3]
         for i, sym_rl in enumerate(syms_rl):
