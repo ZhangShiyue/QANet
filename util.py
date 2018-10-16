@@ -145,14 +145,14 @@ def evaluate(eval_file, answer_dict, is_answer=True):
     return {'exact_match': exact_match, 'f1': f1}, f1s
 
 
-def evaluate_rl(eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word, is_answer=True,
+def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, baseline_file=None, is_answer=True,
                 metric="f1", has_baseline=True, if_fix_base=False):
     rewards = []
     rewards_rl = []
     rewards_base = []
     for qid, syms, syms_rl in zip(qa_id, zip(*symbols), zip(*symbols_rl)):
         ground_truths = eval_file[str(qid)]["questions"] if not is_answer else eval_file[str(qid)]["answers"]
-        context_tokens = eval_file[str(qid)]["context_tokens"]
+        context_tokens = eval_file[str(qid)]["context_tokens_ans"]
         if 3 in syms:
             syms = syms[:syms.index(3)]
         answer = u' '.join([id2word[sym] if sym in id2word
@@ -162,7 +162,8 @@ def evaluate_rl(eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word, i
         answer_rl = u' '.join([id2word[sym_rl] if sym_rl in id2word
                                else context_tokens[sym_rl - len(id2word)] for sym_rl in syms_rl])
         if metric == "f1":
-            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths) if not if_fix_base else float(baseline_file[str(qid)])
+            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths) if not if_fix_base \
+                else float(baseline_file[str(qid)])
             f1_rl = metric_max_over_ground_truths(f1_score, answer_rl, ground_truths)
             rewards.append(f1_rl - f1 if has_baseline else f1_rl)
             rewards_rl.append(f1_rl)
@@ -171,7 +172,8 @@ def evaluate_rl(eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word, i
             answer = normalize_answer(answer).split()
             answer_rl = normalize_answer(answer_rl).split()
             ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
-            bleu = compute_bleu([ground_truths], [answer])[0] if not if_fix_base else float(baseline_file[str(qid)])
+            bleu = compute_bleu([ground_truths], [answer])[0] if not if_fix_base \
+                else float(baseline_file[str(qid)])
             bleu_rl = compute_bleu([ground_truths], [answer_rl])[0]
             rewards.append(bleu_rl - bleu if has_baseline else bleu_rl)
             rewards_rl.append(bleu_rl)
@@ -184,7 +186,7 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
     ques_char_idxs, ques_char_idxs_rl = np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32), \
                                         np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32)
     for k, (qid, syms, syms_rl) in enumerate(zip(qa_id, zip(*symbols), zip(*symbols_rl))):
-        context_tokens = eval_file[str(qid)]["context_tokens"]
+        context_tokens = eval_file[str(qid)]["context_tokens_ans"]
         if 3 in syms:
             syms = syms[:syms.index(3)]
         for i, sym in enumerate(syms):
@@ -204,6 +206,18 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
                     break
                 ques_char_idxs_rl[k, i, j] = char2idx_dict[c] if c in char2idx_dict else 1
     return ques_idxs, ques_char_idxs, ques_idxs_rl, ques_char_idxs_rl
+
+
+def format_sampled_questions(symbols_rl, batch_size, ques_limit):
+    ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32)
+    for k, syms_rl in enumerate(zip(*symbols_rl)):
+        if 3 in syms_rl:
+            syms_rl = list(syms_rl[:syms_rl.index(3)])
+        # add GO and EOS in question
+        syms_rl = [2] + syms_rl[:ques_limit - 2] + [3]
+        for i, sym_rl in enumerate(syms_rl):
+            ques_idxs_rl[k, i] = sym_rl
+    return ques_idxs_rl
 
 
 def normalize_answer(s):

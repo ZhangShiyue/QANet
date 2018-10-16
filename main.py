@@ -12,7 +12,7 @@ https://github.com/HKUST-KnowComp/R-Net
 from model import Model
 from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, \
     evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, \
-    evaluate_rl, format_generated_questions
+    evaluate_rl, format_generated_questions, format_sampled_questions
 
 
 def train(config):
@@ -126,13 +126,15 @@ def train_rl(config):
         meta = json.load(fh)
     with open(config.word_dictionary, "r") as fh:
         word_dictionary = json.load(fh)
-    with open(config.baseline_file, "r") as fh:
-        baseline_file = json.load(fh)
+    baseline_file = None
+    if config.if_fix_base:
+        with open(config.baseline_file, "r") as fh:
+            baseline_file = json.load(fh)
 
     id2word = {word_dictionary[w]: w for w in word_dictionary}
     dev_total = meta["total"]
     print("Building model...")
-    parser = get_record_parser(config, config.ques_limit, config.ans_limit)
+    parser = get_record_parser(config)
     graph = tf.Graph()
     with graph.as_default() as g:
         train_dataset = get_batch_dataset(config.train_record_file, parser, config)
@@ -160,23 +162,27 @@ def train_rl(config):
             start_step = global_step
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
-                c, q, a, ch, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+                c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 if global_step < config.pre_step:
                     loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                        model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                        model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                        model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
                 else:
                     symbols, symbols_rl = sess.run([model.symbols, model.symbols_rl], feed_dict={
-                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                        model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                        model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                        model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id})
-                    reward, reward_rl, reward_base = evaluate_rl(train_eval_file, baseline_file, qa_id, symbols, symbols_rl, id2word,
-                                         is_answer=config.is_answer, metric=config.rl_metric, if_fix_base=config.if_fix_base)
-                    sa = np.array(zip(*symbols_rl))
+                    reward, reward_rl, reward_base = evaluate_rl(train_eval_file, qa_id, symbols, symbols_rl, id2word,
+                                                                 baseline_file=baseline_file, is_answer=config.is_answer,
+                                                                 metric=config.rl_metric, if_fix_base=config.if_fix_base)
+                    sa = format_sampled_questions(symbols_rl, config.batch_size, config.ques_limit)
                     loss_ml, loss_rl, _ = sess.run([model.loss_ml, model.loss_rl, model.train_op], feed_dict={
-                        model.c: c, model.q: q if config.is_answer else a, model.a: a if config.is_answer else q,
-                        model.ch: ch, model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
+                        model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                        model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
+                        model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                         model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout,
                         model.sa: sa, model.reward: reward})
                 if global_step == start_step + 1 or global_step % config.period == 0:
@@ -200,30 +206,42 @@ def train_rl(config):
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)
-                    em_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
-                    writer.add_summary(em_sum, global_step)
+                    bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/bleu".format("train"), simple_value=metrics["bleu"][0]*100), ])
+                    writer.add_summary(bleu_sum, global_step)
+                    rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/rougeL".format("train"), simple_value=metrics["rougeL"]*100), ])
+                    writer.add_summary(rougeL_sum, global_step)
+                    meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/meteor".format("train"), simple_value=metrics["meteor"][0]*100), ])
+                    writer.add_summary(meteor_sum, global_step)
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                                    dev_eval_file, sess, dev_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer)
+                    # print metrics["f1"], metrics["bleu"][0], metrics["rougeL"], metrics["meteor"][0]
+                    # exit()
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)
-                    em_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/em".format("dev"), simple_value=metrics["exact_match"]), ])
-                    writer.add_summary(em_sum, global_step)
+                    bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/bleu".format("dev"), simple_value=metrics["bleu"][0]*100), ])
+                    writer.add_summary(bleu_sum, global_step)
+                    rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/rougeL".format("dev"), simple_value=metrics["rougeL"]*100), ])
+                    writer.add_summary(rougeL_sum, global_step)
+                    meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/meteor".format("dev"), simple_value=metrics["meteor"][0]*100), ])
+                    writer.add_summary(meteor_sum, global_step)
                     writer.flush()
 
                     dev_f1 = metrics["f1"]
-                    dev_em = metrics["exact_match"]
-                    if dev_f1 < best_f1 and dev_em < best_em:
+                    if dev_f1 < best_f1:
                         patience += 1
                         if patience > config.early_stop:
                             break
                     else:
                         patience = 0
-                        best_em = max(best_em, dev_em)
                         best_f1 = max(best_f1, dev_f1)
 
 
@@ -389,7 +407,8 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
             yp2 = map(lambda x: x[0], byp2)
             answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
-        elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator" or model_tpye == "BiDAFGenerator":
+        elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator" \
+                or model_tpye == "BiDAFGenerator" or model_tpye == "BiDAFRLGenerator":
             loss, symbols = sess.run([model.loss, model.symbols],
                                      feed_dict={model.c: c if config.is_answer else ca,
                                                 model.q: q if config.is_answer else a,
@@ -405,13 +424,14 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["loss"] = loss
     metrics["f1s"] = f1s
-    if is_test and not is_answer:
-        bleus = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
+    if not is_answer:
+        bleu = evaluate_bleu(eval_file, answer_dict, is_answer=is_answer)
         rougeL = evaluate_rouge_L(eval_file, answer_dict, is_answer=is_answer)
         meteor = evaluate_meteor(eval_file, answer_dict, is_answer=is_answer)
-        return metrics, bleus, rougeL, meteor
-    else:
-        return metrics, None, None, None
+        metrics["bleu"] = bleu
+        metrics["rougeL"] = rougeL
+        metrics["meteor"] = meteor
+    return metrics
 
 
 def test(config):
@@ -441,7 +461,7 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(15, config.num_steps / config.checkpoint + 1):
+            for ckpt in range(23, config.num_steps / config.checkpoint + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()

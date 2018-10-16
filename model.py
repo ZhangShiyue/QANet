@@ -1,7 +1,7 @@
 import tensorflow as tf
 from layers import regularizer, initializer, total_params
 from qanet import QANetModel, QANetGenerator, QANetRLGenerator
-from bidaf import BiDAFModel, BiDAFGenerator
+from bidaf import BiDAFModel, BiDAFGenerator, BiDAFRLGenerator
 
 
 class Model(object):
@@ -100,7 +100,20 @@ class Model(object):
                 self.symbols = model.sample(config.beam_size) if config.baseline_type == "beam" else model.sample_rl()
                 self.symbols_rl = model.sample_rl()
                 self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
-                            0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)), lambda: config.rl_learning_rate)
+                                  0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)),
+                                  lambda: config.rl_learning_rate)
+            elif model_tpye == "BiDAFRLGenerator":
+                model = BiDAFRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
+                                         self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
+                                         self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
+                                         config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye,
+                                         self.reward, self.sa, config.mixing_ratio, config.pre_step)
+                self.loss, self.loss_ml, self.loss_rl = model.build_model(self.global_step)
+                self.symbols = model.sample(config.beam_size) if config.baseline_type == "beam" else model.sample_rl()
+                self.symbols_rl = model.sample_rl()
+                self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
+                                  0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)),
+                                  lambda: config.rl_learning_rate)
             total_params()
 
             if config.l2_norm is not None:

@@ -25,11 +25,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new2"
-log_dir = os.path.join(dir_name, "event_qg")
-save_dir = os.path.join(dir_name, "model_qg")
+target_dir = "data_new"
+log_dir = os.path.join(dir_name, "event_qg_rl_f1")
+save_dir = os.path.join(dir_name, "model_qg_rl_f1")
 save_dir_dual = os.path.join(dir_name, "smodel_ans_pre")
-answer_dir = os.path.join(dir_name, "answer_qg")
+answer_dir = os.path.join(dir_name, "answer_qg_rl_f1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -45,11 +45,6 @@ char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer")
 baseline_file = os.path.join(dir_name, "sanswer_que_gen/baseline_f1.json")
 
-rerank_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5.tfrecords")
-beam_search_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5.json")
-listener_score_file = os.path.join(dir_name, "gen_answer_speaker1/answer_b5_listener.json")
-rerank_meta = os.path.join(dir_name, "gen_answer_speaker1/answer_b5_meta.json")
-
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
 if not os.path.exists(log_dir):
@@ -59,7 +54,7 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFRLGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "QANetModel", "Model type")
 flags.DEFINE_string("attention_tpye", "dot", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
@@ -96,11 +91,6 @@ flags.DEFINE_string("baseline_file", baseline_file, "baseline f1 scores")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
-flags.DEFINE_string("rerank_file", rerank_file, "Test data with candidate answers")
-flags.DEFINE_string("beam_search_file", beam_search_file, "Test data with candidate answers")
-flags.DEFINE_string("rerank_meta", rerank_meta, "Test data with candidate answers")
-flags.DEFINE_string("listener_score_file", listener_score_file, "Test data with candidate answers")
-
 flags.DEFINE_integer("capacity", 15000, "Batch size of dataset shuffle")
 flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
@@ -109,10 +99,10 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 30000, "Number of steps")
+flags.DEFINE_integer("num_steps", 90000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
-flags.DEFINE_integer("pre_step", 20000, "period to save batch loss")
+flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
 flags.DEFINE_float("dropout", 0.1, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
