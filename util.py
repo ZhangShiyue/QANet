@@ -201,6 +201,38 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, baseline_file=No
     return np.array(rewards), np.mean(rewards_rl), np.mean(rewards_base)
 
 
+def evaluate_rl_dual(eval_file, qa_id, base_dual_byp1, base_dual_byp2, dual_byp1, dual_byp2,
+                     base_dual_loss, dual_loss, dual_rl_metric, has_baseline):
+    reward = []
+    reward_rl = []
+    reward_base = []
+    if dual_rl_metric == "prob":
+        reward_base = map(lambda x: np.exp(-x), list(base_dual_loss))
+        reward_rl = map(lambda x: np.exp(-x), list(dual_loss))
+        reward = map(lambda x: x[0] - x[1], zip(reward_rl, reward_base)) if has_baseline else reward_rl
+    elif dual_rl_metric == "f1":
+        base_dual_yp1 = map(lambda x: x[0], base_dual_byp1)
+        base_dual_yp2 = map(lambda x: x[0], base_dual_byp2)
+        dual_yp1 = map(lambda x: x[0], dual_byp1)
+        dual_yp2 = map(lambda x: x[0], dual_byp2)
+        for qid, base_p1, base_p2, p1, p2 in zip(qa_id, base_dual_yp1, base_dual_yp2, dual_yp1, dual_yp2):
+            ground_truths = eval_file[str(qid)]["answers"]
+            context = eval_file[str(qid)]["context"]
+            spans = eval_file[str(qid)]["spans"]
+            base_start_idx = spans[base_p1][0]
+            base_end_idx = spans[base_p2][1]
+            base_answer = context[base_start_idx: base_end_idx]
+            start_idx = spans[p1][0]
+            end_idx = spans[p2][1]
+            answer = context[start_idx: end_idx]
+            base_f1 = metric_max_over_ground_truths(f1_score, base_answer, ground_truths)
+            f1 = metric_max_over_ground_truths(f1_score, answer, ground_truths)
+            reward_base.append(base_f1)
+            reward_rl.append(f1)
+            reward.append(f1 - base_f1 if has_baseline else f1)
+    return np.array(reward), np.mean(reward_rl), np.mean(reward_base)
+
+
 def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size, ques_limit, char_limit, id2word, char2idx_dict):
     ques_idxs, ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32), np.zeros([batch_size, ques_limit], dtype=np.int32)
     ques_char_idxs, ques_char_idxs_rl = np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32), \

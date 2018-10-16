@@ -12,7 +12,7 @@ https://github.com/HKUST-KnowComp/R-Net
 from model import Model
 from util import get_record_parser, convert_tokens, convert_tokens_g, evaluate, \
     evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, \
-    evaluate_rl, format_generated_questions, format_sampled_questions
+    evaluate_rl, evaluate_rl_dual, format_generated_questions, format_sampled_questions
 
 
 def train(config):
@@ -322,17 +322,20 @@ def train_dual(config):
                 format_generated_questions(train_eval_file, qa_id, symbols, symbols_rl, config.batch_size,
                                            config.ques_limit, config.char_limit, id2word, char2idx_dict)
             # QA reward
-            base_dual_loss = sess_dual.run(dual_model.batch_loss, feed_dict={
+            base_dual_loss, base_dual_byp1, base_dual_byp2 = sess_dual.run(
+                    [dual_model.batch_loss, dual_model.byp1, dual_model.byp2], feed_dict={
                     dual_model.c: c, dual_model.q: ques_idxs, dual_model.a: a,
                     dual_model.ch: ch, dual_model.qh: ques_char_idxs, dual_model.ah: ah,
                     dual_model.y1: y1, dual_model.y2: y2, dual_model.qa_id: qa_id})
-            dual_loss = sess_dual.run(dual_model.batch_loss, feed_dict={
+            dual_loss, dual_byp1, dual_byp2 = sess_dual.run(
+                    [dual_model.batch_loss, dual_model.byp1, dual_model.byp2], feed_dict={
                     dual_model.c: c, dual_model.q: ques_idxs_rl, dual_model.a: a,
                     dual_model.ch: ch, dual_model.qh: ques_char_idxs_rl, dual_model.ah: ah,
                     dual_model.y1: y1, dual_model.y2: y2, dual_model.qa_id: qa_id})
-            reward_base = map(lambda x: np.exp(-x), list(base_dual_loss))
-            reward_rl = map(lambda x: np.exp(-x), list(dual_loss))
-            reward = np.array(map(lambda x: x[0] - x[1], zip(reward_rl, reward_base)))
+            reward, reward_rl, reward_base = evaluate_rl_dual(train_eval_file, qa_id, base_dual_byp1,
+                                                              base_dual_byp2, dual_byp1, dual_byp2,
+                                                              base_dual_loss, dual_loss,
+                                                              config.dual_rl_metric, config.has_baseline)
             # train with rl
             sa = format_sampled_questions(symbols_rl, config.batch_size, config.ques_limit)
             loss_ml, _ = sess.run([model.loss_ml, model.train_op], feed_dict={
@@ -346,31 +349,32 @@ def train_dual(config):
                     tag="model/loss_ml", simple_value=loss_ml), ])
             writer.add_summary(loss_sum, global_step)
             reward_base_sum = tf.Summary(value=[tf.Summary.Value(
-                    tag="model/reward_base", simple_value=np.mean(reward_base)), ])
+                    tag="model/reward_base", simple_value=reward_base), ])
             writer.add_summary(reward_base_sum, global_step)
             reward_rl_sum = tf.Summary(value=[tf.Summary.Value(
-                    tag="model/reward_rl", simple_value=np.mean(reward_rl)), ])
+                    tag="model/reward_rl", simple_value=reward_rl), ])
             writer.add_summary(reward_rl_sum, global_step)
         if global_step % config.checkpoint == 0:
-            filename = os.path.join(
-                    config.save_dir, "model_{}.ckpt".format(global_step))
-            saver.save(sess, filename)
+            # filename = os.path.join(
+            #         config.save_dir, "model_{}.ckpt".format(global_step))
+            # saver.save(sess, filename)
             metrics = evaluate_batch(config, model, config.val_num_batches,
                                      train_eval_file, sess, train_iterator, id2word,
                                      model_tpye=config.model_tpye, is_answer=config.is_answer)
-            loss_sum = tf.Summary(value=[tf.Summary.Value(
-                    tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
-            writer.add_summary(loss_sum, global_step)
-            f1_sum = tf.Summary(value=[tf.Summary.Value(
-                    tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
-            writer.add_summary(f1_sum, global_step)
-            em_sum = tf.Summary(value=[tf.Summary.Value(
-                    tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
-            writer.add_summary(em_sum, global_step)
+            # loss_sum = tf.Summary(value=[tf.Summary.Value(
+            #         tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
+            # writer.add_summary(loss_sum, global_step)
+            # f1_sum = tf.Summary(value=[tf.Summary.Value(
+            #         tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
+            # writer.add_summary(f1_sum, global_step)
+            # em_sum = tf.Summary(value=[tf.Summary.Value(
+            #         tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
+            # writer.add_summary(em_sum, global_step)
 
             metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                            dev_eval_file, sess, dev_iterator, id2word,
                                      model_tpye=config.model_tpye, is_answer=config.is_answer)
+            exit()
             loss_sum = tf.Summary(value=[tf.Summary.Value(
                     tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
             writer.add_summary(loss_sum, global_step)
@@ -382,16 +386,16 @@ def train_dual(config):
             writer.add_summary(em_sum, global_step)
             writer.flush()
 
-            dev_f1 = metrics["f1"]
-            dev_em = metrics["exact_match"]
-            if dev_f1 < best_f1 and dev_em < best_em:
-                patience += 1
-                if patience > config.early_stop:
-                    break
-            else:
-                patience = 0
-                best_em = max(best_em, dev_em)
-                best_f1 = max(best_f1, dev_f1)
+            # dev_f1 = metrics["f1"]
+            # dev_em = metrics["exact_match"]
+            # if dev_f1 < best_f1 and dev_em < best_em:
+            #     patience += 1
+            #     if patience > config.early_stop:
+            #         break
+            # else:
+            #     patience = 0
+            #     best_em = max(best_em, dev_em)
+            #     best_f1 = max(best_f1, dev_f1)
 
 
 def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel",
