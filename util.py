@@ -150,6 +150,7 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, baseline_file=No
     rewards = []
     rewards_rl = []
     rewards_base = []
+    res_meteor, res_meteor_rl, gts_meteor = [], [], []
     for qid, syms, syms_rl in zip(qa_id, zip(*symbols), zip(*symbols_rl)):
         ground_truths = eval_file[str(qid)]["questions"] if not is_answer else eval_file[str(qid)]["answers"]
         context_tokens = eval_file[str(qid)]["context_tokens_ans"]
@@ -178,6 +179,25 @@ def evaluate_rl(eval_file, qa_id, symbols, symbols_rl, id2word, baseline_file=No
             rewards.append(bleu_rl - bleu if has_baseline else bleu_rl)
             rewards_rl.append(bleu_rl)
             rewards_base.append(bleu)
+        elif metric == "rouge":
+            answer = normalize_answer(answer).split()
+            answer_rl = normalize_answer(answer_rl).split()
+            ground_truths = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+            rouge = compute_rouge_L(answer, ground_truths) if not if_fix_base \
+                else float(baseline_file[str(qid)])
+            rouge_rl = compute_rouge_L(answer_rl, ground_truths)
+            rewards.append(rouge_rl - rouge if has_baseline else rouge_rl)
+            rewards_rl.append(rouge_rl)
+            rewards_base.append(rouge)
+        elif metric == "meteor":
+            gts_meteor.append([normalize_answer(ground_truth) for ground_truth in ground_truths])
+            res_meteor.append(normalize_answer(answer))
+            res_meteor_rl.append(normalize_answer(answer_rl))
+    if metric == "meteor":
+        meteor = Meteor()
+        rewards_base = meteor.compute_score(gts_meteor, res_meteor)[1]
+        rewards_rl = meteor.compute_score(gts_meteor, res_meteor_rl)[1]
+        rewards = map(lambda x: x[0] - x[1], zip(rewards_rl, rewards_base)) if has_baseline else rewards_rl
     return np.array(rewards), np.mean(rewards_rl), np.mean(rewards_base)
 
 
