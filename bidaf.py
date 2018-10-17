@@ -142,7 +142,7 @@ class BiDAFGenerator(BiDAFModel):
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
                 attn_ws.append(attn_w)
                 # update cell state
-                attn = tf.reshape(attn, [-1, self.d])
+                attn = tf.reshape(attn, [-1, self.d * 2])
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cells[4](cinp, state)
 
@@ -193,13 +193,13 @@ class BiDAFGenerator(BiDAFModel):
 
                 # update cell state
                 cinp = tf.concat([einp, attn], -1)
-                h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d]),
+                h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d * 2]),
                                          tuple(tf.reshape(s, [-1, self.d]) for s in state))
                 h = tf.reshape(h, [self.N, -1, self.d])
                 state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state)
 
                 with tf.variable_scope("AttnOutputProjection"):
-                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 2 + self.dw])
+                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 3 + self.dw])
                     # generation prob
                     p_gen = tf.sigmoid(_linear([oinp], output_size=1, bias=True, scope="gen_prob"))
                     p_gen = tf.reshape(p_gen, [self.N, -1, 1])
