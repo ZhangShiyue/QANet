@@ -1,6 +1,7 @@
 import os
 import tensorflow as tf
 from prepro import prepro
+from prepro1 import prepro as prepro1
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
     test_rerank, test_reranked, tmp
 
@@ -25,11 +26,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new2"
-log_dir = os.path.join(dir_name, "event_qg4")
-save_dir = os.path.join(dir_name, "model_qg4")
+target_dir = "data_new21"
+log_dir = os.path.join(dir_name, "event_qg31")
+save_dir = os.path.join(dir_name, "model_qg31")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg4")
+answer_dir = os.path.join(dir_name, "answer_qg31")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -125,7 +126,7 @@ flags.DEFINE_integer("input_encoder_convs", 2, "The number of model encoder")
 glove_char_file = os.path.join(home, "data", "glove", "glove.840B.300d-char.txt")
 flags.DEFINE_string("glove_char_file", glove_char_file, "Glove character embedding source file")
 flags.DEFINE_boolean("pretrained_char", False, "Whether to use pretrained character embedding")
-flags.DEFINE_boolean("lower_word", True, "Whether to lower word")
+flags.DEFINE_boolean("lower_word", False, "Whether to lower word")
 flags.DEFINE_integer("vocab_count_limit", -1, "Minimum count of words in the vocab")
 flags.DEFINE_integer("char_count_limit", -1, "Minimum count of chars in the char vocab")
 flags.DEFINE_integer("glove_word_size", int(2.2e6), "Corpus size for Glove")
@@ -151,6 +152,8 @@ def main(_):
         train_dual(config)
     elif config.mode == "prepro":
         prepro(config)
+    elif config.mode == "prepro1":
+        prepro1(config)
     elif config.mode == "debug":
         config.num_steps = 2
         config.val_num_batches = 1
