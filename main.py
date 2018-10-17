@@ -355,26 +355,25 @@ def train_dual(config):
                     tag="model/reward_rl", simple_value=reward_rl), ])
             writer.add_summary(reward_rl_sum, global_step)
         if global_step % config.checkpoint == 0:
-            # filename = os.path.join(
-            #         config.save_dir, "model_{}.ckpt".format(global_step))
-            # saver.save(sess, filename)
+            filename = os.path.join(
+                    config.save_dir, "model_{}.ckpt".format(global_step))
+            saver.save(sess, filename)
             metrics = evaluate_batch(config, model, config.val_num_batches,
                                      train_eval_file, sess, train_iterator, id2word,
                                      model_tpye=config.model_tpye, is_answer=config.is_answer)
-            # loss_sum = tf.Summary(value=[tf.Summary.Value(
-            #         tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
-            # writer.add_summary(loss_sum, global_step)
-            # f1_sum = tf.Summary(value=[tf.Summary.Value(
-            #         tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
-            # writer.add_summary(f1_sum, global_step)
-            # em_sum = tf.Summary(value=[tf.Summary.Value(
-            #         tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
-            # writer.add_summary(em_sum, global_step)
+            loss_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
+            writer.add_summary(loss_sum, global_step)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
+            writer.add_summary(f1_sum, global_step)
+            em_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
+            writer.add_summary(em_sum, global_step)
 
             metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                            dev_eval_file, sess, dev_iterator, id2word,
                                      model_tpye=config.model_tpye, is_answer=config.is_answer)
-            exit()
             loss_sum = tf.Summary(value=[tf.Summary.Value(
                     tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
             writer.add_summary(loss_sum, global_step)
