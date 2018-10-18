@@ -1,8 +1,8 @@
 import os
 import tensorflow as tf
 from prepro import prepro
-from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
-    test_rerank, test_reranked, tmp
+from question_data import prepro as prepro_que
+from main import train, train_lm, train_rl, train_dual, test
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -26,10 +26,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new"
-log_dir = os.path.join(dir_name, "event_qg_rl_f1_nobase")
-save_dir = os.path.join(dir_name, "model_qg_rl_f1_nobase")
+log_dir = os.path.join(dir_name, "event_qlm")
+save_dir = os.path.join(dir_name, "model_qlm")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_rl_f1_nobase")
+answer_dir = os.path.join(dir_name, "answer_qlm")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -45,6 +45,13 @@ char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer")
 baseline_file = os.path.join(dir_name, "sanswer_que_gen/baseline_f1.json")
 
+question_dir = os.path.join(home, "data_que")
+question_train_files = [os.path.join(question_dir, "squad_que")]
+question_dev_files = [os.path.join(question_dir, "squad_que_dev")]
+question_train_record_file = os.path.join(question_dir, "train.tfrecords")
+question_dev_record_file = os.path.join(question_dir, "dev.tfrecords")
+question_dev_meta = os.path.join(question_dir, "dev_meta.json")
+
 if not os.path.exists(target_dir):
     os.makedirs(target_dir)
 if not os.path.exists(log_dir):
@@ -59,10 +66,10 @@ flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("attention_tpye", "dot", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
-flags.DEFINE_string("rl_metric", "f1", "The metric used to train rl")
+flags.DEFINE_string("rl_metric", "rouge", "The metric used to train rl")
 flags.DEFINE_string("dual_rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
-flags.DEFINE_boolean("has_baseline", False, "Use baseline or not")
+flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
 flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
@@ -92,6 +99,12 @@ flags.DEFINE_string("baseline_file", baseline_file, "baseline f1 scores")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
+flags.DEFINE_list("question_train_files", question_train_files, "question datasets for training")
+flags.DEFINE_list("question_dev_files", question_dev_files, "question datasets for validation")
+flags.DEFINE_string("question_train_record_file", question_train_record_file, "Out file for question lm train data")
+flags.DEFINE_string("question_dev_record_file", question_dev_record_file, "Out file for question lm dev data")
+flags.DEFINE_string("question_dev_meta", question_dev_meta, "Out file for dev meta")
+
 flags.DEFINE_integer("capacity", 15000, "Batch size of dataset shuffle")
 flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
@@ -100,7 +113,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 90000, "Number of steps")
+flags.DEFINE_integer("num_steps", 30000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
@@ -147,10 +160,14 @@ def main(_):
         train(config)
     elif config.mode == "train_rl":
         train_rl(config)
+    elif config.mode == "train_lm":
+        train_lm(config)
     elif config.mode == "train_dual":
         train_dual(config)
     elif config.mode == "prepro":
         prepro(config)
+    elif config.mode == "prepro_que":
+        prepro_que(config)
     elif config.mode == "debug":
         config.num_steps = 2
         config.val_num_batches = 1
@@ -159,16 +176,6 @@ def main(_):
         train(config)
     elif config.mode == "test":
         test(config)
-    elif config.mode == "test_beam":
-        test_beam(config)
-    elif config.mode == "test_bleu":
-        test_bleu(config)
-    elif config.mode == "test_rerank":
-        test_rerank(config)
-    elif config.mode == "test_reranked":
-        test_reranked(config)
-    elif config.mode == "tmp":
-        tmp(config)
     else:
         print("Unknown mode")
         exit(0)

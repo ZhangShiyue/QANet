@@ -66,6 +66,29 @@ def get_record_parser(config, is_test=False):
     return parse
 
 
+def get_record_parser_lm(config, is_test=False):
+    def parse(example):
+        ques_limit = config.test_ques_limit if is_test else config.ques_limit
+        char_limit = config.char_limit
+
+        features = tf.parse_single_example(example,
+                                           features={
+                                               "ques_idxs": tf.FixedLenFeature([], tf.string),
+                                               "ques_char_idxs": tf.FixedLenFeature([], tf.string),
+                                               "id": tf.FixedLenFeature([], tf.int64)
+                                           })
+
+        ques_idxs = tf.reshape(tf.decode_raw(
+                features["ques_idxs"], tf.int32), [ques_limit])
+        ques_char_idxs = tf.reshape(tf.decode_raw(
+                features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
+        qa_id = features["id"]
+
+        return ques_idxs, ques_char_idxs, qa_id
+
+    return parse
+
+
 def get_batch_dataset(record_file, parser, config):
     num_threads = tf.constant(config.num_threads, dtype=tf.int32)
     dataset = tf.data.TFRecordDataset(record_file).map(
@@ -233,8 +256,10 @@ def evaluate_rl_dual(eval_file, qa_id, base_dual_byp1, base_dual_byp2, dual_byp1
     return np.array(reward), np.mean(reward_rl), np.mean(reward_base)
 
 
-def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size, ques_limit, char_limit, id2word, char2idx_dict):
-    ques_idxs, ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32), np.zeros([batch_size, ques_limit], dtype=np.int32)
+def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size, ques_limit, char_limit, id2word,
+                               char2idx_dict):
+    ques_idxs, ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32), np.zeros([batch_size, ques_limit],
+                                                                                           dtype=np.int32)
     ques_char_idxs, ques_char_idxs_rl = np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32), \
                                         np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32)
     for k, (qid, syms, syms_rl) in enumerate(zip(qa_id, zip(*symbols), zip(*symbols_rl))):
@@ -437,7 +462,7 @@ def my_lcs(string, sub):
     return lengths[len(string)][len(sub)]
 
 
-def compute_rouge_L(pred, refs, beta = 1.2):
+def compute_rouge_L(pred, refs, beta=1.2):
     """
     Compute ROUGE-L score given one candidate and references for an image
     :param candidate: str : candidate sentence to be evaluated
@@ -472,6 +497,7 @@ def evaluate_rouge_L(eval_file, answer_dict, is_answer=True):
         score = compute_rouge_L(prediction_tokens, ground_truth_tokens)
         scores.append(score)
     return np.mean(scores)
+
 
 def evaluate_meteor(eval_file, answer_dict, is_answer=True):
     meteor = Meteor()
