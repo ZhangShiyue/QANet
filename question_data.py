@@ -111,8 +111,8 @@ def build_features(config, is_test=False):
 
 def prepro(config):
     build_features(config, is_test=False)
-    dev_meta = build_features(config, is_test=True)
-    save(config.question_dev_meta, dev_meta, message="dev meta")
+    # dev_meta = build_features(config, is_test=True)
+    # save(config.question_dev_meta, dev_meta, message="dev meta")
 
 
 if __name__ == '__main__':
