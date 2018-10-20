@@ -46,7 +46,8 @@ answer_file = os.path.join(answer_dir, "answer")
 baseline_file = os.path.join(dir_name, "sanswer_que_gen/baseline_f1.json")
 
 question_dir = os.path.join(home, "data_que")
-question_train_files = [os.path.join(question_dir, "squad_que"), os.path.join(question_dir, "ms_marco_que")]
+question_train_files = [os.path.join(question_dir, "squad_que"), os.path.join(question_dir, "ms_marco_que"),
+                        os.path.join(question_dir, "quora_que")]
 question_dev_files = [os.path.join(question_dir, "squad_que_dev")]
 question_train_record_file = os.path.join(question_dir, "train2.tfrecords")
 question_dev_record_file = os.path.join(question_dir, "dev.tfrecords")
@@ -113,8 +114,8 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 60000, "Number of steps")
-flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
+flags.DEFINE_integer("num_steps", 150000, "Number of steps")
+flags.DEFINE_integer("checkpoint", 5000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
