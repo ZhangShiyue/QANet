@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 from prepro import prepro
 from question_data import prepro as prepro_que
-from main import train, train_lm, train_rl, train_dual, test
+from main import train, train_lm, train_rl, train_dual, test, test_lm
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -26,10 +26,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new"
-log_dir = os.path.join(dir_name, "event_qlm2")
-save_dir = os.path.join(dir_name, "model_qlm2")
+log_dir = os.path.join(dir_name, "event_qlm3")
+save_dir = os.path.join(dir_name, "model_qlm3")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qlm2")
+answer_dir = os.path.join(dir_name, "answer_qlm3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -115,7 +115,7 @@ flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
 flags.DEFINE_integer("num_steps", 150000, "Number of steps")
-flags.DEFINE_integer("checkpoint", 5000, "checkpoint to save and evaluate the model")
+flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
@@ -169,14 +169,10 @@ def main(_):
         prepro(config)
     elif config.mode == "prepro_que":
         prepro_que(config)
-    elif config.mode == "debug":
-        config.num_steps = 2
-        config.val_num_batches = 1
-        config.checkpoint = 1
-        config.period = 1
-        train(config)
     elif config.mode == "test":
         test(config)
+    elif config.mode == "test_lm":
+        test_lm(config)
     else:
         print("Unknown mode")
         exit(0)

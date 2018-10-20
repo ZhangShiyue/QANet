@@ -11,7 +11,8 @@ https://github.com/HKUST-KnowComp/R-Net
 
 from model import Model
 from lm import Model as LModel
-from util import get_record_parser, get_record_parser_lm, convert_tokens, convert_tokens_g, evaluate, \
+from util import get_record_parser, get_record_parser_lm, convert_tokens, \
+    convert_tokens_g, convert_tokens_q, evaluate, \
     evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, \
     evaluate_rl, evaluate_rl_dual, format_generated_questions, format_sampled_questions
 
@@ -121,6 +122,10 @@ def train_lm(config):
         char_mat = np.array(json.load(fh), dtype=np.float32)
     with open(config.question_dev_meta, "r") as fh:
         meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
+
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
 
     dev_total = meta["total"]
     print("Building model...")
@@ -159,7 +164,8 @@ def train_lm(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    loss = evaluate_batch_lm(config, model, dev_total // config.batch_size + 1, sess, dev_iterator)
+                    loss, _ = evaluate_batch_lm(config, model, dev_total // config.batch_size + 1,
+                                             sess, dev_iterator, id2word)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=loss), ])
                     writer.add_summary(loss_sum, global_step)
@@ -496,15 +502,19 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     return metrics
 
 
-def evaluate_batch_lm(config, model, num_batches, sess, iterator, is_sample=False):
+def evaluate_batch_lm(config, model, num_batches, sess, iterator, id2word, is_sample=False):
     losses = []
+    questions = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
         q, qh, qa_id = sess.run(next_element)
-        loss = sess.run(model.loss, feed_dict={model.q: q, model.qh: qh, model.qa_id: qa_id})
+        loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.q: q, model.qh: qh, model.qa_id: qa_id})
         losses.append(loss)
+        if is_sample:
+            ques = convert_tokens_q(symbols, id2word)
+            questions.extend(ques)
     loss = np.mean(losses)
-    return loss
+    return loss, questions
 
 
 def test(config):
@@ -567,3 +577,40 @@ def test(config):
                             tag="{}/meteor".format("test"), simple_value=meteor[0] * 100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
+
+
+def test_lm(config):
+    with open(config.word_emb_file, "r") as fh:
+        word_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.char_emb_file, "r") as fh:
+        char_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.question_dev_meta, "r") as fh:
+        meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
+
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
+
+    dev_total = meta["total"]
+    graph = tf.Graph()
+    print("Loading model...")
+    with graph.as_default() as g:
+        dev_iterator = get_dataset(config.question_dev_record_file, get_record_parser_lm(
+                config, is_test=True), config, is_test=True).make_one_shot_iterator()
+        model = LModel(config, word_mat, char_mat, graph=g)
+        sess_config = tf.ConfigProto(allow_soft_placement=True)
+        sess_config.gpu_options.allow_growth = True
+
+        with tf.Session(config=sess_config) as sess:
+            for ckpt in range(90, config.num_steps / config.checkpoint + 1):
+                checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt * config.checkpoint)
+                sess.run(tf.global_variables_initializer())
+                saver = tf.train.Saver()
+                saver.restore(sess, checkpoint)
+                loss, questions = evaluate_batch_lm(config, model, dev_total // config.batch_size + 1,
+                                             sess, dev_iterator, id2word, is_sample=True)
+                with open("{}{}".format(config.answer_file, config.beam_size), 'w') as f:
+                    f.write("\n".join(questions))
+                break
+
+

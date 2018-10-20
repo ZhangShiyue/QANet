@@ -88,7 +88,7 @@ class Model(object):
             prev_probs = tf.zeros((self.N, 1))
             for i, inp in enumerate(oups):
                 einp = tf.nn.embedding_lookup(self.word_mat, inp)
-                if prev is not None:
+                if i > 2 and prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
                         einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, prev_probs, i)
                         state = tuple(tf.gather_nd(s, index) for s in state)  # update prev state

@@ -68,7 +68,7 @@ def get_record_parser(config, is_test=False):
 
 def get_record_parser_lm(config, is_test=False):
     def parse(example):
-        ques_limit = config.test_ques_limit if is_test else config.ques_limit
+        ques_limit = config.ques_limit
         char_limit = config.char_limit
 
         features = tf.parse_single_example(example,
@@ -147,6 +147,17 @@ def convert_tokens_g(eval_file, qa_id, symbols, id2word):
         answer_dict[str(qid)] = answer
         remapped_dict[uuid] = answer
     return answer_dict, remapped_dict
+
+
+def convert_tokens_q(symbols, id2word):
+    questions = []
+    for syms in zip(*symbols):
+        if 3 in syms:
+            syms = syms[:syms.index(3)]
+        question = u' '.join([id2word[sym] for sym in syms])
+        print question
+        questions.append(question)
+    return questions
 
 
 def evaluate(eval_file, answer_dict, is_answer=True):
