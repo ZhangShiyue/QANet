@@ -12,7 +12,7 @@ https://github.com/HKUST-KnowComp/R-Net
 from model import Model
 from lm import Model as LModel
 from util import get_record_parser, get_record_parser_lm, convert_tokens, \
-    convert_tokens_g, convert_tokens_q, evaluate, \
+    convert_tokens_g, convert_tokens_q, evaluate, normalize_answer,\
     evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, \
     evaluate_rl, evaluate_rl_dual, format_generated_questions, format_sampled_questions, format_predicted_answers
 
@@ -530,7 +530,7 @@ def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess,
         bprobs = np.array(bprobs)
         for i in range(config.beam_size):
             yp1 = np.array(byp1)[:, i]
-            yp2 = np.array(byp1)[:, i]
+            yp2 = np.array(byp2)[:, i]
             c, ch, q, qh, a, ah = format_predicted_answers(eval_file, qa_id, yp1, yp2, config.batch_size,
                                                            config.ans_limit, config.char_limit, config.para_limit,
                                                            config.ques_limit, word2idx_dict, char2idx_dict)
@@ -544,9 +544,27 @@ def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess,
         yp2 = [byp2[k][i] for k, i in enumerate(index)]
         answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
         answer_dict.update(answer_dict_)
+        # answers_dict = {}
+        # for i in range(config.beam_size):
+        #     yp1 = np.array(byp1)[:, i]
+        #     yp2 = np.array(byp2)[:, i]
+        #     answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
+        #     for id in answer_dict_:
+        #         if id not in answers_dict:
+        #             answers_dict[id] = []
+        #         answers_dict[id].append(answer_dict_[id])
+        # for id in answers_dict:
+        #     answers = answers_dict[id]
+        #     for ans in answers:
+        #         if normalize_answer(ans) in [normalize_answer(a) for a in eval_file[id]["answers"]]:
+        #             answer_dict[id] = normalize_answer(ans)
+        #             break
+        #     if id not in answer_dict:
+        #         answer_dict[id] = answers[0]
     metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["f1s"] = f1s
     return metrics
+
 
 def test(config):
     with open(config.word_emb_file, "r") as fh:

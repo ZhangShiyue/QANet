@@ -322,7 +322,7 @@ def format_predicted_answers(eval_file, qa_id, yp1, yp2, batch_size, ans_limit, 
     for k, (qid, p1, p2) in enumerate(zip(qa_id, yp1, yp2)):
         context_tokens = eval_file[str(qid)]["context_tokens"]
         ques_tokens = ["--GO--"] + word_tokenize(eval_file[str(qid)]["questions"][0]) + ["--EOS--"]
-        answer_tokens = ["--GO--"] + context_tokens[p1: p2+1] + ["--EOS--"]
+        answer_tokens = ["--GO--"] + context_tokens[p1: p2+1][:ans_limit-2] + ["--EOS--"]
         for i, token in enumerate(answer_tokens):
             ans_idxs[k, i] = word2idx_dict[token] if token in word2idx_dict else len(word2idx_dict) + p1 + i
             for j, c in enumerate(list(token)):

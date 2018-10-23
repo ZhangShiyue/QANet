@@ -130,7 +130,7 @@ flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
-flags.DEFINE_float("rerank_weight", 1.0, "Learning rate")
+flags.DEFINE_float("rerank_weight", 0.1, "Learning rate")
 flags.DEFINE_integer("model_encoder_layers", 3, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_blocks", 2, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_convs", 2, "The number of model encoder")
