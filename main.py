@@ -14,7 +14,7 @@ from lm import Model as LModel
 from util import get_record_parser, get_record_parser_lm, convert_tokens, \
     convert_tokens_g, convert_tokens_q, evaluate, \
     evaluate_bleu, evaluate_rouge_L, evaluate_meteor, get_batch_dataset, get_dataset, \
-    evaluate_rl, evaluate_rl_dual, format_generated_questions, format_sampled_questions
+    evaluate_rl, evaluate_rl_dual, format_generated_questions, format_sampled_questions, format_predicted_answers
 
 
 def train(config):
@@ -517,6 +517,37 @@ def evaluate_batch_lm(config, model, num_batches, sess, iterator, id2word, is_sa
     return loss, questions
 
 
+def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess, sess_dual, iterator, id2word,
+                        word2idx_dict, char2idx_dict, is_answer=True):
+    answer_dict = {}
+    next_element = iterator.get_next()
+    for _ in tqdm(range(1, num_batches + 1)):
+        c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(next_element)
+        bprobs, byp1, byp2 = sess.run([model.bprobs, model.byp1, model.byp2],
+                                    feed_dict={model.c: c, model.q: q, model.a: a,
+                                               model.ch: ch, model.qh: qh, model.ah: ah,
+                                               model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+        bprobs = np.array(bprobs)
+        for i in range(config.beam_size):
+            yp1 = np.array(byp1)[:, i]
+            yp2 = np.array(byp1)[:, i]
+            c, ch, q, qh, a, ah = format_predicted_answers(eval_file, qa_id, yp1, yp2, config.batch_size,
+                                                           config.ans_limit, config.char_limit, config.para_limit,
+                                                           config.ques_limit, word2idx_dict, char2idx_dict)
+            loss = sess_dual.run(dual_model.batch_loss, feed_dict={dual_model.c: c, dual_model.q: a, dual_model.a: q,
+                                                             dual_model.ch: ch, dual_model.qh: ah, dual_model.ah: qh,
+                                                             dual_model.qa_id: qa_id,
+                                                             dual_model.y1: y1, dual_model.y2: y2})
+            bprobs[:, i] += config.rerank_weight * loss
+        index =  np.argmin(bprobs, 1)
+        yp1 = [byp1[k][i] for k, i in enumerate(index)]
+        yp2 = [byp2[k][i] for k, i in enumerate(index)]
+        answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
+        answer_dict.update(answer_dict_)
+    metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
+    metrics["f1s"] = f1s
+    return metrics
+
 def test(config):
     with open(config.word_emb_file, "r") as fh:
         word_mat = np.array(json.load(fh), dtype=np.float32)
@@ -577,6 +608,70 @@ def test(config):
                             tag="{}/meteor".format("test"), simple_value=meteor[0] * 100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
+
+def test_dual(config):
+    with open(config.word_emb_file, "r") as fh:
+        word_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.char_emb_file, "r") as fh:
+        char_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.dev_eval_file, "r") as fh:
+        eval_file = json.load(fh)
+    with open(config.dev_meta, "r") as fh:
+        meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
+    with open(config.char_dictionary, "r") as fh:
+        char2idx_dict = json.load(fh)
+
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
+    total = meta["total"]
+
+    graph = tf.Graph()
+    graph_dual = tf.Graph()
+    print("Loading model...")
+    with graph.as_default() as g:
+        test_iterator = get_dataset(config.dev_record_file, get_record_parser(
+                config, is_test=False), config, is_test=False).make_one_shot_iterator()
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=True,
+                      is_answer=config.is_answer, graph=g)
+        dual_model = Model(config, word_mat, char_mat, model_tpye=config.dual_model_tpye, trainable=True,
+                           is_answer=config.is_answer_dual, graph=graph_dual)
+        # sess_config = tf.ConfigProto(allow_soft_placement=True)
+        # sess_config.gpu_options.allow_growth = True
+
+        sess = tf.Session(graph=graph)
+        sess_dual = tf.Session(graph=graph_dual)
+
+        writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
+        checkpoint = "{}/model_{}.ckpt".format(config.save_dir, 20 * config.checkpoint)
+        checkpoint_dual = "{}/model_{}.ckpt".format(config.save_dir_dual, 30 * config.checkpoint)
+        with sess.as_default():
+            with graph.as_default():
+                sess.run(tf.global_variables_initializer())
+                saver = tf.train.Saver()
+                saver.restore(sess, checkpoint)
+        with sess_dual.as_default():
+            with graph_dual.as_default():
+                sess_dual.run(tf.global_variables_initializer())
+                saver_dual = tf.train.Saver()
+                saver_dual.restore(sess_dual, checkpoint_dual)
+
+        global_step = sess.run(model.global_step)
+        metrics = evaluate_batch_dual(config, model, dual_model, total // config.batch_size + 1,
+                                                             eval_file, sess, sess_dual, test_iterator, id2word,
+                                                             word_dictionary, char2idx_dict)
+        print metrics["f1"], metrics["exact_match"]
+        exit()
+        loss_sum = tf.Summary(value=[tf.Summary.Value(
+                tag="{}/loss".format("test_dual"), simple_value=metrics["loss"]), ])
+        writer.add_summary(loss_sum, global_step)
+        f1_sum = tf.Summary(value=[tf.Summary.Value(
+                tag="{}/f1".format("test_dual"), simple_value=metrics["f1"]), ])
+        writer.add_summary(f1_sum, global_step)
+        em_sum = tf.Summary(value=[tf.Summary.Value(
+                tag="{}/em".format("test_dual"), simple_value=metrics["exact_match"]), ])
+        writer.add_summary(em_sum, global_step)
+        writer.flush()
 
 
 def test_lm(config):

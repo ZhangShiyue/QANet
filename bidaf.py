@@ -110,7 +110,7 @@ class BiDAFGenerator(BiDAFModel):
         # compute loss
         batch_loss = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step, use_pointer=self.use_pointer)
         loss = tf.reduce_mean(batch_loss)
-        return loss
+        return loss, batch_loss
 
     def model_encoder(self, attention_outputs, num_layers=3):
         with tf.variable_scope("Model_Encoder_Layer"):

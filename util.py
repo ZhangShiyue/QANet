@@ -311,6 +311,50 @@ def format_sampled_questions(symbols_rl, batch_size, ques_limit):
             ques_idxs_rl[k, i] = sym_rl
     return ques_idxs_rl
 
+def format_predicted_answers(eval_file, qa_id, yp1, yp2, batch_size, ans_limit, char_limit, para_limit,
+                             ques_limit, word2idx_dict, char2idx_dict):
+    ans_idxs = np.zeros([batch_size, ans_limit], dtype=np.int32)
+    ans_char_idxs = np.zeros([batch_size, ans_limit, char_limit], dtype=np.int32)
+    context_idxs = np.zeros([batch_size, para_limit], dtype=np.int32)
+    context_char_idxs = np.zeros([batch_size, para_limit, char_limit], dtype=np.int32)
+    ques_idxs = np.zeros([batch_size, ques_limit], dtype=np.int32)
+    ques_char_idxs = np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32)
+    for k, (qid, p1, p2) in enumerate(zip(qa_id, yp1, yp2)):
+        context_tokens = eval_file[str(qid)]["context_tokens"]
+        ques_tokens = ["--GO--"] + word_tokenize(eval_file[str(qid)]["questions"][0]) + ["--EOS--"]
+        answer_tokens = ["--GO--"] + context_tokens[p1: p2+1] + ["--EOS--"]
+        for i, token in enumerate(answer_tokens):
+            ans_idxs[k, i] = word2idx_dict[token] if token in word2idx_dict else len(word2idx_dict) + p1 + i
+            for j, c in enumerate(list(token)):
+                if j == char_limit:
+                    break
+                ans_char_idxs[k, i, j] = char2idx_dict[c] if c in char2idx_dict else 1
+
+        context_tokens_tmp = []
+        for i, token in enumerate(context_tokens):
+            if i == p1:
+                context_tokens_tmp.append("--GO--")
+            context_tokens_tmp.append(token)
+            if i == p2:
+                context_tokens_tmp.append("--EOS--")
+        for i, token in enumerate(context_tokens_tmp):
+            context_idxs[k, i] = word2idx_dict[token] if token in word2idx_dict else len(word2idx_dict) + i
+            for j, char in enumerate(list(token)):
+                if j == char_limit:
+                    break
+                context_char_idxs[k, i, j] = char2idx_dict[c] if c in char2idx_dict else 1
+
+        for i, token in enumerate(ques_tokens):
+            wid = word2idx_dict[token] if token in word2idx_dict else 1
+            ques_idxs[k, i] = len(word2idx_dict) + context_tokens_tmp.index(token) \
+                if wid == 1 and token in context_tokens_tmp else wid
+            for j, c in enumerate(list(token)):
+                if j == char_limit:
+                    break
+                ques_char_idxs[k, i, j] = char2idx_dict[c] if c in char2idx_dict else 1
+
+    return context_idxs, context_char_idxs, ques_idxs, ques_char_idxs, ans_idxs, ans_char_idxs
+
 
 def normalize_answer(s):
     def remove_articles(text):

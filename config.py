@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 from prepro import prepro
 from question_data import prepro as prepro_que
-from main import train, train_lm, train_rl, train_dual, test, test_lm
+from main import train, train_lm, train_rl, train_dual, test, test_lm, test_dual
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -26,10 +26,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new"
-log_dir = os.path.join(dir_name, "event_qg")
-save_dir = os.path.join(dir_name, "model_qg")
-save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg")
+log_dir = os.path.join(dir_name, "event_qa")
+save_dir = os.path.join(dir_name, "model_qa")
+save_dir_dual = os.path.join(dir_name, "model_qg")
+answer_dir = os.path.join(dir_name, "answer_qa")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -62,11 +62,11 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
-flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFModel", "Model type")
+flags.DEFINE_string("dual_model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("attention_tpye", "dot", "Model type")
-flags.DEFINE_boolean("is_answer", False, "Output answer or question")
-flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
+flags.DEFINE_boolean("is_answer", True, "Output answer or question")
+flags.DEFINE_boolean("is_answer_dual", False, "Output answer or question")
 flags.DEFINE_string("rl_metric", "rouge", "The metric used to train rl")
 flags.DEFINE_string("dual_rl_metric", "f1", "The metric used to train rl")
 flags.DEFINE_string("baseline_type", "beam", "The sampling strategy used when producing baseline")
@@ -113,7 +113,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
-flags.DEFINE_integer("beam_size", 1, "Beam size")
+flags.DEFINE_integer("beam_size", 5, "Beam size")
 flags.DEFINE_integer("num_steps", 90000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
@@ -130,6 +130,7 @@ flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
+flags.DEFINE_float("rerank_weight", 1.0, "Learning rate")
 flags.DEFINE_integer("model_encoder_layers", 3, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_blocks", 2, "The number of model encoder")
 flags.DEFINE_integer("model_encoder_convs", 2, "The number of model encoder")
@@ -173,6 +174,8 @@ def main(_):
         test(config)
     elif config.mode == "test_lm":
         test_lm(config)
+    elif config.mode == "test_dual":
+        test_dual(config)
     else:
         print("Unknown mode")
         exit(0)
