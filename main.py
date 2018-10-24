@@ -662,7 +662,7 @@ def test_dual(config):
 
         writer = tf.summary.FileWriter("{}/{}_beam{}".format(config.log_dir, config.save_dir_dual, config.beam_size))
         checkpoint = "{}/model_{}.ckpt".format(config.save_dir, 20 * config.checkpoint)
-        checkpoint_dual = "{}/model_{}.ckpt".format(config.save_dir_dual, 30 * config.checkpoint)
+        checkpoint_dual = "{}/model_{}.ckpt".format(config.save_dir_dual, 61 * config.checkpoint)
         rerank_weight = 0.1
         while rerank_weight < 2.05:
             with sess.as_default():

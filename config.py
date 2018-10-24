@@ -28,7 +28,7 @@ if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
 target_dir = "data_new"
 log_dir = os.path.join(dir_name, "event_qa")
 save_dir = os.path.join(dir_name, "model_qa")
-save_dir_dual = os.path.join(dir_name, "model_qg")
+save_dir_dual = os.path.join(dir_name, "model_qg_rl_QAp")
 answer_dir = os.path.join(dir_name, "answer_qa")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
