@@ -518,7 +518,7 @@ def evaluate_batch_lm(config, model, num_batches, sess, iterator, id2word, is_sa
 
 
 def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess, sess_dual, iterator, id2word,
-                        word2idx_dict, char2idx_dict, is_answer=True):
+                        word2idx_dict, char2idx_dict, rerank_weight, is_answer=True, test_oracle=False):
     answer_dict = {}
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
@@ -527,40 +527,42 @@ def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess,
                                     feed_dict={model.c: c, model.q: q, model.a: a,
                                                model.ch: ch, model.qh: qh, model.ah: ah,
                                                model.qa_id: qa_id, model.y1: y1, model.y2: y2})
-        bprobs = np.array(bprobs)
-        for i in range(config.beam_size):
-            yp1 = np.array(byp1)[:, i]
-            yp2 = np.array(byp2)[:, i]
-            c, ch, q, qh, a, ah = format_predicted_answers(eval_file, qa_id, yp1, yp2, config.batch_size,
-                                                           config.ans_limit, config.char_limit, config.para_limit,
-                                                           config.ques_limit, word2idx_dict, char2idx_dict)
-            loss = sess_dual.run(dual_model.batch_loss, feed_dict={dual_model.c: c, dual_model.q: a, dual_model.a: q,
-                                                             dual_model.ch: ch, dual_model.qh: ah, dual_model.ah: qh,
-                                                             dual_model.qa_id: qa_id,
-                                                             dual_model.y1: y1, dual_model.y2: y2})
-            bprobs[:, i] += config.rerank_weight * loss
-        index =  np.argmin(bprobs, 1)
-        yp1 = [byp1[k][i] for k, i in enumerate(index)]
-        yp2 = [byp2[k][i] for k, i in enumerate(index)]
-        answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
-        answer_dict.update(answer_dict_)
-        # answers_dict = {}
-        # for i in range(config.beam_size):
-        #     yp1 = np.array(byp1)[:, i]
-        #     yp2 = np.array(byp2)[:, i]
-        #     answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
-        #     for id in answer_dict_:
-        #         if id not in answers_dict:
-        #             answers_dict[id] = []
-        #         answers_dict[id].append(answer_dict_[id])
-        # for id in answers_dict:
-        #     answers = answers_dict[id]
-        #     for ans in answers:
-        #         if normalize_answer(ans) in [normalize_answer(a) for a in eval_file[id]["answers"]]:
-        #             answer_dict[id] = normalize_answer(ans)
-        #             break
-        #     if id not in answer_dict:
-        #         answer_dict[id] = answers[0]
+        if not test_oracle:
+            bprobs = np.array(bprobs)
+            for i in range(config.beam_size):
+                yp1 = np.array(byp1)[:, i]
+                yp2 = np.array(byp2)[:, i]
+                c, ch, q, qh, a, ah = format_predicted_answers(eval_file, qa_id, yp1, yp2, config.batch_size,
+                                                               config.ans_limit, config.char_limit, config.para_limit,
+                                                               config.ques_limit, word2idx_dict, char2idx_dict)
+                loss = sess_dual.run(dual_model.batch_loss, feed_dict={dual_model.c: c, dual_model.q: a, dual_model.a: q,
+                                                                 dual_model.ch: ch, dual_model.qh: ah, dual_model.ah: qh,
+                                                                 dual_model.qa_id: qa_id,
+                                                                 dual_model.y1: y1, dual_model.y2: y2})
+                bprobs[:, i] += rerank_weight * loss
+            index =  np.argmin(bprobs, 1)
+            yp1 = [byp1[k][i] for k, i in enumerate(index)]
+            yp2 = [byp2[k][i] for k, i in enumerate(index)]
+            answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
+            answer_dict.update(answer_dict_)
+        else:
+            answers_dict = {}
+            for i in range(config.beam_size):
+                yp1 = np.array(byp1)[:, i]
+                yp2 = np.array(byp2)[:, i]
+                answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
+                for id in answer_dict_:
+                    if id not in answers_dict:
+                        answers_dict[id] = []
+                    answers_dict[id].append(answer_dict_[id])
+            for id in answers_dict:
+                answers = answers_dict[id]
+                for ans in answers:
+                    if normalize_answer(ans) in [normalize_answer(a) for a in eval_file[id]["answers"]]:
+                        answer_dict[id] = normalize_answer(ans)
+                        break
+                if id not in answer_dict:
+                    answer_dict[id] = answers[0]
     metrics, f1s = evaluate(eval_file, answer_dict, is_answer=is_answer)
     metrics["f1s"] = f1s
     return metrics
@@ -654,42 +656,36 @@ def test_dual(config):
                       is_answer=config.is_answer, graph=g)
         dual_model = Model(config, word_mat, char_mat, model_tpye=config.dual_model_tpye, trainable=True,
                            is_answer=config.is_answer_dual, graph=graph_dual)
-        # sess_config = tf.ConfigProto(allow_soft_placement=True)
-        # sess_config.gpu_options.allow_growth = True
 
         sess = tf.Session(graph=graph)
         sess_dual = tf.Session(graph=graph_dual)
 
-        writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
+        writer = tf.summary.FileWriter("{}/{}_beam{}".format(config.log_dir, config.save_dir_dual, config.beam_size))
         checkpoint = "{}/model_{}.ckpt".format(config.save_dir, 20 * config.checkpoint)
         checkpoint_dual = "{}/model_{}.ckpt".format(config.save_dir_dual, 30 * config.checkpoint)
-        with sess.as_default():
-            with graph.as_default():
-                sess.run(tf.global_variables_initializer())
-                saver = tf.train.Saver()
-                saver.restore(sess, checkpoint)
-        with sess_dual.as_default():
-            with graph_dual.as_default():
-                sess_dual.run(tf.global_variables_initializer())
-                saver_dual = tf.train.Saver()
-                saver_dual.restore(sess_dual, checkpoint_dual)
+        rerank_weight = 0.1
+        while rerank_weight < 2.05:
+            with sess.as_default():
+                with graph.as_default():
+                    sess.run(tf.global_variables_initializer())
+                    saver = tf.train.Saver()
+                    saver.restore(sess, checkpoint)
+            with sess_dual.as_default():
+                with graph_dual.as_default():
+                    sess_dual.run(tf.global_variables_initializer())
+                    saver_dual = tf.train.Saver()
+                    saver_dual.restore(sess_dual, checkpoint_dual)
 
-        global_step = sess.run(model.global_step)
-        metrics = evaluate_batch_dual(config, model, dual_model, total // config.batch_size + 1,
-                                                             eval_file, sess, sess_dual, test_iterator, id2word,
-                                                             word_dictionary, char2idx_dict)
-        print metrics["f1"], metrics["exact_match"]
-        exit()
-        loss_sum = tf.Summary(value=[tf.Summary.Value(
-                tag="{}/loss".format("test_dual"), simple_value=metrics["loss"]), ])
-        writer.add_summary(loss_sum, global_step)
-        f1_sum = tf.Summary(value=[tf.Summary.Value(
-                tag="{}/f1".format("test_dual"), simple_value=metrics["f1"]), ])
-        writer.add_summary(f1_sum, global_step)
-        em_sum = tf.Summary(value=[tf.Summary.Value(
-                tag="{}/em".format("test_dual"), simple_value=metrics["exact_match"]), ])
-        writer.add_summary(em_sum, global_step)
-        writer.flush()
+            metrics = evaluate_batch_dual(config, model, dual_model, total // config.batch_size + 1, eval_file, sess,
+                                          sess_dual, test_iterator, id2word, word_dictionary, char2idx_dict, rerank_weight)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/f1".format("test_dual"), simple_value=metrics["f1"]), ])
+            writer.add_summary(f1_sum, rerank_weight)
+            em_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/em".format("test_dual"), simple_value=metrics["exact_match"]), ])
+            writer.add_summary(em_sum, rerank_weight)
+            writer.flush()
+            rerank_weight += 0.1
 
 
 def test_lm(config):
