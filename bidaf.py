@@ -298,11 +298,11 @@ class BiDAFGenerator(BiDAFModel):
                 # get loss
                 indices = tf.concat((batch_nums, oup), axis=1)
                 gold_probs = tf.gather_nd(final_dist, indices)
-                crossent = tf.cond(global_step < 10000,
+                crossent = tf.cond(global_step < 1000,
                                    lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
                                    lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
                 weight_add = tf.cast(target < self.NV, tf.float32)
-                weight = tf.cond(global_step < 10000,
+                weight = tf.cond(global_step < 1000,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32) * weight_add,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32))
             else:
