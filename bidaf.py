@@ -83,7 +83,7 @@ class BiDAFModel(BasicModel):
 class BiDAFGenerator(BiDAFModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
                  ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
-                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type):
+                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type, layer):
         BiDAFModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
                             char_limit, hidden, char_dim, word_dim)
@@ -95,6 +95,9 @@ class BiDAFGenerator(BiDAFModel):
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
         self.attention_function = multihead_attention if attention_type == "dot" else vanilla_attention
+        self.layer = layer
+        self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[4:4+layer]) if layer > 1 else self.cells[4]
+
 
     def build_model(self, global_step):
         # word, character embedding
@@ -127,7 +130,7 @@ class BiDAFGenerator(BiDAFModel):
             oups = tf.split(a, [1] * self.AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
-            state = (c, h)
+            state = (c, h) if self.layer == 1 else [(c, h) for _ in range(self.layer)]
             attn_ws = []
             p_gens = []
             outputs = []
@@ -144,7 +147,7 @@ class BiDAFGenerator(BiDAFModel):
                 # update cell state
                 attn = tf.reshape(attn, [-1, self.d * 2])
                 cinp = tf.concat([einp, attn], 1)
-                h, state = self.cells[4](cinp, state)
+                h, state = self.cell(cinp, state)
 
                 with tf.variable_scope("AttnOutputProjection"):
                     # generation prob
@@ -164,7 +167,7 @@ class BiDAFGenerator(BiDAFModel):
             oups = tf.split(self.a, [1] * self.AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
-            state = (c, h)
+            state = (c, h) if self.layer == 1 else [(c, h) for _ in range(self.layer)]
             prev, attn_w, p_gen = None, None, None
             prev_probs = tf.zeros((self.N, 1))
             symbols = []
@@ -177,7 +180,8 @@ class BiDAFGenerator(BiDAFModel):
                         einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen,
                                                                                   prev_probs, i)
                         h = tf.gather_nd(h, index)  # update prev state
-                        state = tuple(tf.gather_nd(s, index) for s in state)  # update prev state
+                        state = tuple(tf.gather_nd(s, index) for s in state) if self.layer == 1 else \
+                            [tuple(tf.gather_nd(s, index) for s in sta) for sta in state]  # update prev state
                         for j, symbol in enumerate(symbols):
                             symbols[j] = tf.gather_nd(symbol, index)  # update prev symbols
                         for j, attn_w in enumerate(attn_ws):
@@ -193,10 +197,12 @@ class BiDAFGenerator(BiDAFModel):
 
                 # update cell state
                 cinp = tf.concat([einp, attn], -1)
-                h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d * 2]),
-                                         tuple(tf.reshape(s, [-1, self.d]) for s in state))
+                state = tuple(tf.reshape(s, [-1, self.d]) for s in state) if self.layer == 1 else \
+                    [tuple(tf.reshape(s, [-1, self.d]) for s in sta) for sta in state]
+                h, state = self.cell(tf.reshape(cinp, [-1, self.dw + self.d * 2]), state)
                 h = tf.reshape(h, [self.N, -1, self.d])
-                state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state)
+                state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state) if self.layer == 1 else \
+                    [tuple(tf.reshape(s, [self.N, -1, self.d]) for s in sta) for sta in state]
 
                 with tf.variable_scope("AttnOutputProjection"):
                     oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 3 + self.dw])

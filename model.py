@@ -83,7 +83,8 @@ class Model(object):
                 model = BiDAFGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
                                        self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
                                        self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
-                                       config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye)
+                                       config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye,
+                                       config.decoder_layers)
                 self.loss = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
