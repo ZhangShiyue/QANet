@@ -96,7 +96,7 @@ class BiDAFGenerator(BiDAFModel):
         self.use_pointer = use_pointer
         self.attention_function = multihead_attention if attention_type == "dot" else vanilla_attention
         self.layer = layer
-        self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[4:4+layer]) if layer > 1 else self.cells[4]
+        self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[6:6+layer]) if layer > 1 else self.cells[4]
 
 
     def build_model(self, global_step):
@@ -122,7 +122,11 @@ class BiDAFGenerator(BiDAFModel):
                                                                   sequence_length=self.c_len,
                                                                   dtype='float', scope="g0")
             g0 = tf.concat([g0h_fw, g0h_bw], axis=-1)
-            return g0
+            (g1h_fw, g1h_bw), _ = tf.nn.bidirectional_dynamic_rnn(self.cells[4], self.cells[5], g0,
+                                                                  sequence_length=self.c_len,
+                                                                  dtype='float', scope="g1")
+            g1 = tf.concat([g1h_fw, g1h_bw], axis=-1)
+            return g1
 
     def decode(self, a, reuse=None):
         with tf.variable_scope("Decoder_Layer", reuse=reuse):
