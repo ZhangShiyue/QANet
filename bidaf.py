@@ -142,7 +142,7 @@ class BiDAFGenerator(BiDAFModel):
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
                 attn_ws.append(attn_w)
                 # update cell state
-                attn = tf.reshape(attn, [-1, self.d])
+                attn = tf.reshape(attn, [-1, self.d * 2])
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cells[4](cinp, state)
 
@@ -193,13 +193,13 @@ class BiDAFGenerator(BiDAFModel):
 
                 # update cell state
                 cinp = tf.concat([einp, attn], -1)
-                h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d]),
+                h, state = self.cells[4](tf.reshape(cinp, [-1, self.dw + self.d * 2]),
                                          tuple(tf.reshape(s, [-1, self.d]) for s in state))
                 h = tf.reshape(h, [self.N, -1, self.d])
                 state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state)
 
                 with tf.variable_scope("AttnOutputProjection"):
-                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 2 + self.dw])
+                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 3 + self.dw])
                     # generation prob
                     p_gen = tf.sigmoid(_linear([oinp], output_size=1, bias=True, scope="gen_prob"))
                     p_gen = tf.reshape(p_gen, [self.N, -1, 1])
@@ -298,11 +298,11 @@ class BiDAFGenerator(BiDAFModel):
                 # get loss
                 indices = tf.concat((batch_nums, oup), axis=1)
                 gold_probs = tf.gather_nd(final_dist, indices)
-                crossent = tf.cond(global_step < 10000,
+                crossent = tf.cond(global_step < -1,
                                    lambda: tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target),
                                    lambda: -tf.log(tf.clip_by_value(gold_probs, 1e-10, 1.0)))
                 weight_add = tf.cast(target < self.NV, tf.float32)
-                weight = tf.cond(global_step < 10000,
+                weight = tf.cond(global_step < -1,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32) * weight_add,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32))
             else:
@@ -370,7 +370,7 @@ class BiDAFRLGenerator(BiDAFGenerator):
                 attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1,
                                                    memory=memory, mask=self.c_mask, bias=False, return_weights=True)
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
-                attn = tf.reshape(attn, [-1, self.d])
+                attn = tf.reshape(attn, [-1, self.d * 2])
                 attn_ws.append(attn_w)
 
                 # update cell state
