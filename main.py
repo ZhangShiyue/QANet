@@ -336,7 +336,7 @@ def train_dual(config):
 
     model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, is_answer=config.is_answer, graph=graph)
     dual_model = Model(config, word_mat, char_mat, model_tpye=config.dual_model_tpye, is_answer=config.is_answer_dual,
-                       graph=graph_dual)
+                       is_dual=True, graph=graph_dual)
 
     # sess_config = tf.ConfigProto(allow_soft_placement=True)
     # sess_config.gpu_options.allow_growth = True

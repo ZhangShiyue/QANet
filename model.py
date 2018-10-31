@@ -5,7 +5,8 @@ from bidaf import BiDAFModel, BiDAFGenerator, BiDAFRLGenerator
 
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True, is_answer=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True,
+                 is_answer=True, is_dual=False, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
@@ -17,7 +18,7 @@ class Model(object):
             self.CL = config.char_limit
             if not is_answer:
                 self.QL, self.AL = self.AL, self.QL
-
+            self.hidden = config.hidden if not is_dual else config.dual_hidden
             self.global_step = tf.get_variable('global_step', shape=[], dtype=tf.int32,
                                                initializer=tf.constant_initializer(0), trainable=False)
             self.qa_id = tf.placeholder(tf.int32, [self.N], "qa_id")
@@ -52,7 +53,7 @@ class Model(object):
             if model_tpye == "QANetModel":
                 model = QANetModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
                                    self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.AL,
-                                   self.CL, config.hidden, config.char_dim, config.glove_dim, config.num_heads,
+                                   self.CL, self.hidden, config.char_dim, config.glove_dim, config.num_heads,
                                    config.model_encoder_layers, config.model_encoder_blocks,
                                    config.model_encoder_convs, config.input_encoder_convs)
                 self.loss, self.batch_loss = model.build_model(self.global_step)
@@ -62,7 +63,7 @@ class Model(object):
             elif model_tpye == "BiDAFModel":
                 model = BiDAFModel(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.y1, self.y2,
                                    self.word_mat, self.char_mat, self.dropout, self.N, self.PL, self.QL, self.AL,
-                                   self.CL, config.hidden, config.char_dim, config.glove_dim)
+                                   self.CL, self.hidden, config.char_dim, config.glove_dim)
                 self.loss, self.batch_loss = model.build_model(self.global_step)
                 self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
@@ -71,7 +72,7 @@ class Model(object):
                 model = QANetGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
                                        self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
                                        self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
-                                       self.AL, self.CL, config.hidden, config.char_dim,
+                                       self.AL, self.CL, self.hidden, config.char_dim,
                                        config.glove_dim, config.num_heads, config.model_encoder_layers,
                                        config.model_encoder_blocks, config.model_encoder_convs,
                                        config.input_encoder_convs, config.use_pointer)
@@ -82,7 +83,7 @@ class Model(object):
             elif model_tpye == "BiDAFGenerator":
                 model = BiDAFGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
                                        self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
-                                       self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
+                                       self.N, self.PL, self.QL, self.AL, self.CL, self.hidden, config.char_dim,
                                        config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye)
                 self.loss, self.batch_loss = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
@@ -92,7 +93,7 @@ class Model(object):
                 model = QANetRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
                                          self.a, self.a_mask, self.ah, self.y1, self.y2, self.word_mat,
                                          self.char_mat, self.num_words, self.dropout, self.N, self.PL, self.QL,
-                                         self.AL, self.CL, config.hidden, config.char_dim, config.glove_dim,
+                                         self.AL, self.CL, self.hidden, config.char_dim, config.glove_dim,
                                          config.num_heads, config.model_encoder_layers, config.model_encoder_blocks,
                                          config.model_encoder_convs, config.input_encoder_convs, self.reward,
                                          self.sa, config.mixing_ratio, config.pre_step)
@@ -105,7 +106,7 @@ class Model(object):
             elif model_tpye == "BiDAFRLGenerator":
                 model = BiDAFRLGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
                                          self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
-                                         self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
+                                         self.N, self.PL, self.QL, self.AL, self.CL, self.hidden, config.char_dim,
                                          config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye,
                                          self.reward, self.sa, config.mixing_ratio, config.pre_step)
                 self.loss, self.loss_ml, self.loss_rl = model.build_model(self.global_step)
