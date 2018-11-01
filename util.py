@@ -268,7 +268,7 @@ def evaluate_rl_dual(eval_file, qa_id, base_dual_byp1, base_dual_byp2, dual_byp1
 
 
 def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size, ques_limit, char_limit, id2word,
-                               char2idx_dict):
+                               char2idx_dict, use_pointer=True):
     ques_idxs, ques_idxs_rl = np.zeros([batch_size, ques_limit], dtype=np.int32), np.zeros([batch_size, ques_limit],
                                                                                            dtype=np.int32)
     ques_char_idxs, ques_char_idxs_rl = np.zeros([batch_size, ques_limit, char_limit], dtype=np.int32), \
@@ -280,7 +280,7 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
             syms = syms[:syms.index(3)]
         syms = [2] + syms[:ques_limit - 2] + [3]
         for i, sym in enumerate(syms):
-            ques_idxs[k, i] = sym
+            ques_idxs[k, i] = 1 if sym >= len(id2word) and not use_pointer else sym
             word = id2word[sym] if sym in id2word else context_tokens[sym - len(id2word)]
             for j, c in enumerate(list(word)):
                 if j == char_limit:
@@ -290,7 +290,7 @@ def format_generated_questions(eval_file, qa_id, symbols, symbols_rl, batch_size
             syms_rl = syms_rl[:syms_rl.index(3)]
         syms_rl = [2] + syms_rl[:ques_limit - 2] + [3]
         for i, sym_rl in enumerate(syms_rl):
-            ques_idxs_rl[k, i] = sym_rl
+            ques_idxs_rl[k, i] = 1 if sym_rl >= len(id2word) and not use_pointer else sym_rl
             word = id2word[sym_rl] if sym_rl in id2word else context_tokens[sym_rl - len(id2word)]
             for j, c in enumerate(list(word)):
                 if j == char_limit:

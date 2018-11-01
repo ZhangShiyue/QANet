@@ -3,7 +3,7 @@ from layers import _linear, total_params, regularizer
 
 
 class Model(object):
-    def __init__(self, config, word_mat=None, char_mat=None, trainable=True, graph=None):
+    def __init__(self, config, word_mat=None, char_mat=None, trainable=True, is_dual=False, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
@@ -20,21 +20,22 @@ class Model(object):
             self.qh = tf.placeholder(tf.int32, [self.N, self.QL, self.CL], "question_char")
             self.q_mask = tf.cast(self.q, tf.bool)
             self.qa_id = tf.placeholder(tf.int32, [self.N], "qa_id")
+            self.d = config.hidden if not is_dual else config.dual_hidden
 
             self.word_mat = tf.get_variable("word_mat", initializer=tf.constant(word_mat, dtype=tf.float32),
                                             trainable=config.word_trainable)
             self.char_mat = tf.get_variable(
                     "char_mat", initializer=tf.constant(char_mat, dtype=tf.float32))
 
-            self.cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(config.hidden),
+            self.cell = tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(self.d),
                                                       input_keep_prob=1.0 - self.dropout)
             self.loop_function = self._loop_function
             self.dw = config.glove_dim
-            self.d = config.hidden
+
             self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
                                  tf.log(tf.cast(self.global_step, tf.float32) + 1))
 
-            self.loss = self.build_model(self.global_step)
+            self.loss, self.batch_loss = self.build_model(self.global_step)
             # self.symbols = self.sample(config.beam_size)
 
             total_params()
@@ -57,7 +58,7 @@ class Model(object):
         # compute loss
         batch_loss = self._compute_loss(outputs, oups)
         loss = tf.reduce_mean(batch_loss)
-        return loss
+        return loss, batch_loss
 
     def decode(self, reuse=None):
         with tf.variable_scope("Decoder_Layer", reuse=reuse):
