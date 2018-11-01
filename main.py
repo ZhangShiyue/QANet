@@ -164,7 +164,7 @@ def train_lm(config):
                             config.save_dir, "model_{}.ckpt".format(global_step))
                     saver.save(sess, filename)
 
-                    loss, _ = evaluate_batch_lm(config, model, dev_total // config.batch_size + 1,
+                    loss = evaluate_batch_lm(config, model, dev_total // config.batch_size + 1,
                                              sess, dev_iterator, id2word)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=loss), ])
@@ -504,17 +504,13 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
 
 def evaluate_batch_lm(config, model, num_batches, sess, iterator, id2word, is_sample=False):
     losses = []
-    questions = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
         q, qh, qa_id = sess.run(next_element)
-        loss, symbols = sess.run([model.loss, model.symbols], feed_dict={model.q: q, model.qh: qh, model.qa_id: qa_id})
+        loss = sess.run(model.loss, feed_dict={model.q: q, model.qh: qh, model.qa_id: qa_id})
         losses.append(loss)
-        if is_sample:
-            ques = convert_tokens_q(symbols, id2word)
-            questions.extend(ques)
     loss = np.mean(losses)
-    return loss, questions
+    return loss
 
 
 def evaluate_batch_dual(config, model, dual_model, num_batches, eval_file, sess, sess_dual, iterator, id2word,

@@ -35,7 +35,7 @@ class Model(object):
                                  tf.log(tf.cast(self.global_step, tf.float32) + 1))
 
             self.loss = self.build_model(self.global_step)
-            self.symbols = self.sample(config.beam_size)
+            # self.symbols = self.sample(config.beam_size)
 
             total_params()
 
