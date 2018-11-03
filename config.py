@@ -3,6 +3,7 @@ import tensorflow as tf
 from prepro import prepro
 from prepro1 import prepro as prepro1
 from prepro2 import prepro as prepro2
+from prepro3 import prepro as prepro3
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
     test_rerank, test_reranked, tmp
 
@@ -27,7 +28,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new4"
+target_dir = "data_new_que"
 log_dir = os.path.join(dir_name, "event_qg5")
 save_dir = os.path.join(dir_name, "model_qg5")
 save_dir_dual = os.path.join(dir_name, "model_qa")
@@ -36,6 +37,7 @@ train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
 word_emb_file = os.path.join(target_dir, "word_emb.json")
+que_word_emb_file = os.path.join(target_dir, "que_word_emb.json")
 char_emb_file = os.path.join(target_dir, "char_emb.json")
 train_eval = os.path.join(target_dir, "train_eval.json")
 dev_eval = os.path.join(target_dir, "dev_eval.json")
@@ -43,6 +45,7 @@ test_eval = os.path.join(target_dir, "test_eval.json")
 dev_meta = os.path.join(target_dir, "dev_meta.json")
 test_meta = os.path.join(target_dir, "test_meta.json")
 word_dictionary = os.path.join(target_dir, "word_dictionary.json")
+que_word_dictionary = os.path.join(target_dir, "que_word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer")
 baseline_file = os.path.join(dir_name, "sanswer_que_gen/baseline_f1.json")
@@ -83,6 +86,7 @@ flags.DEFINE_string("train_record_file", train_record_file, "Out file for train 
 flags.DEFINE_string("dev_record_file", dev_record_file, "Out file for dev data")
 flags.DEFINE_string("test_record_file", test_record_file, "Out file for test data")
 flags.DEFINE_string("word_emb_file", word_emb_file, "Out file for word embedding")
+flags.DEFINE_string("que_word_emb_file", que_word_emb_file, "Out file for word embedding")
 flags.DEFINE_string("char_emb_file", char_emb_file, "Out file for char embedding")
 flags.DEFINE_string("train_eval_file", train_eval, "Out file for train eval")
 flags.DEFINE_string("dev_eval_file", dev_eval, "Out file for dev eval")
@@ -92,6 +96,7 @@ flags.DEFINE_string("test_meta", test_meta, "Out file for test meta")
 flags.DEFINE_string("answer_file", answer_file, "Out file for answer")
 flags.DEFINE_string("baseline_file", baseline_file, "baseline f1 scores")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
+flags.DEFINE_string("que_word_dictionary", que_word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
 
 flags.DEFINE_integer("capacity", 15000, "Batch size of dataset shuffle")
@@ -158,6 +163,8 @@ def main(_):
         prepro1(config)
     elif config.mode == "prepro2":
         prepro2(config)
+    elif config.mode == "prepro3":
+        prepro3(config)
     elif config.mode == "debug":
         config.num_steps = 2
         config.val_num_batches = 1
