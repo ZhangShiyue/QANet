@@ -67,11 +67,11 @@ def process_file(filename, data_type, word_counter=None, char_counter=None, lowe
                     ques_tokens = ["--GO--"] + word_tokenize(ques) + ["--EOS--"]
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
-                    if word_counter is not None:
-                        for token in ques_tokens:
-                            word_counter[token] += 1
-                            for char in token:
-                                char_counter[char] += 1
+                    # if word_counter is not None:
+                    #     for token in ques_tokens:
+                    #         word_counter[token] += 1
+                    #         for char in token:
+                    #             char_counter[char] += 1
                     y1s, y2s = [], []
                     answer_texts = []
                     answer_tokens = []
