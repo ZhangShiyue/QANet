@@ -34,7 +34,8 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter=None, que_word_counter=None, char_counter=None, lower_word=False):
+def process_file(filename, data_type, word_counter=None, que_word_counter=None, char_counter=None,
+                 lower_word=False, titles=None):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
@@ -43,6 +44,8 @@ def process_file(filename, data_type, word_counter=None, que_word_counter=None, 
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
+            if titles is not None and article["title"].encode('utf-8') not in titles:
+                continue
             for para in article["paragraphs"]:
                 context = para["context"].replace(
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
@@ -382,26 +385,16 @@ def save(filename, obj, message=None):
 
 
 def prepro(config):
+    train_titles = map(lambda x: x.strip(), open("processed/doclist-train.txt", 'r').readlines())
+    test_titles = map(lambda x: x.strip(), open("processed/doclist-test.txt", 'r').readlines())
     word_counter, que_word_counter, char_counter = Counter(), Counter(), Counter()
-    examples, eval = process_file(config.train_file, "train", word_counter=word_counter,
-            que_word_counter=que_word_counter, char_counter=char_counter, lower_word=config.lower_word)
-    train_examples, dev_examples = examples[:-11000], examples[-11000:]
-    train_eval, dev_eval = {}, {}
-    train_qids = []
-    for example in train_examples:
-        qid = str(example["id"])
-        train_qids.append(qid)
-        train_eval[qid] = eval[qid]
-    pkl.dump(train_qids, open("train_ids.pkl", 'wb'))
-    dev_qids = []
-    for example in dev_examples:
-        qid = str(example["id"])
-        dev_qids.append(qid)
-        dev_eval[qid] = eval[qid]
-    pkl.dump(dev_qids, open("dev_ids.pkl", 'wb'))
-    # dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-    #         char_counter, lower_word=config.lower_word)
-    test_examples, test_eval = process_file(config.test_file, "test", lower_word=config.lower_word)
+    train_examples, train_eval = process_file(config.train_file, "train", word_counter=word_counter,
+                                              que_word_counter=que_word_counter, char_counter=char_counter,
+                                              lower_word=config.lower_word, titles=train_titles)
+    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter, que_word_counter=que_word_counter,
+                                          char_counter=char_counter, lower_word=config.lower_word)
+    test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word,
+                                            titles=test_titles)
 
     word_emb_file = config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None

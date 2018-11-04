@@ -14,8 +14,8 @@ https://github.com/HKUST-KnowComp/R-Net
 
 flags = tf.flags
 
-# home = os.path.expanduser("/nlp/shiyue/QANet/")
-home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+home = os.path.expanduser("/nlp/shiyue/QANet/")
+# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
@@ -28,7 +28,7 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new_que"
+target_dir = "data_new_que1"
 log_dir = os.path.join(dir_name, "event_qg5")
 save_dir = os.path.join(dir_name, "model_qg5")
 save_dir_dual = os.path.join(dir_name, "model_qa")
