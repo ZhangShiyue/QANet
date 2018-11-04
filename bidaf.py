@@ -96,7 +96,7 @@ class BiDAFGenerator(BiDAFModel):
         self.use_pointer = use_pointer
         self.attention_function = multihead_attention if attention_type == "dot" else vanilla_attention
         self.layer = layer
-        self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[6:6+layer]) if layer > 1 else self.cells[4]
+        self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[6:6+layer]) if layer > 1 else self.cells[6]
 
 
     def build_model(self, global_step):

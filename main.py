@@ -480,7 +480,7 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(23, config.num_steps / config.checkpoint + 1):
+            for ckpt in range(20, config.num_steps / config.checkpoint + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
@@ -488,7 +488,7 @@ def test(config):
                 # if config.decay < 1.0:
                 #     sess.run(model.assign_vars)
                 global_step = sess.run(model.global_step)
-                metrics, bleus, rougeL, meteor = evaluate_batch(config, model, total // config.test_batch_size + 1,
+                metrics = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
                                          is_answer=config.is_answer, is_test=True)
 
@@ -503,15 +503,16 @@ def test(config):
                 writer.add_summary(em_sum, global_step)
                 if not config.is_answer:
                     bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/bleu".format("test"), simple_value=bleus[0]*100), ])
+                            tag="{}/bleu".format("test"), simple_value=metrics["bleu"][0]*100), ])
                     writer.add_summary(bleu_sum, global_step)
                     rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/rougeL".format("test"), simple_value=rougeL*100), ])
+                            tag="{}/rougeL".format("test"), simple_value=metrics["rougeL"]*100), ])
                     writer.add_summary(rougeL_sum, global_step)
                     meteor_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/meteor".format("test"), simple_value=meteor[0]*100), ])
+                            tag="{}/meteor".format("test"), simple_value=metrics["meteor"][0]*100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
+                exit()
 
 
 def test_beam(config):

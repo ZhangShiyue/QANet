@@ -33,11 +33,11 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter=None, char_counter=None, lower_word=False, titles=None):
+def process_file(filename, data_type, word_counter=None, char_counter=None, lower_word=False, titles=None, total=0):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
-    total = 0
+    total = total
     max_c, max_q, max_a = 0, 0, 0
     with open(filename, "r") as fh:
         source = json.load(fh)
@@ -67,11 +67,11 @@ def process_file(filename, data_type, word_counter=None, char_counter=None, lowe
                     ques_tokens = ["--GO--"] + word_tokenize(ques) + ["--EOS--"]
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
-                    # if word_counter is not None:
-                    #     for token in ques_tokens:
-                    #         word_counter[token] += 1
-                    #         for char in token:
-                    #             char_counter[char] += 1
+                    if word_counter is not None:
+                        for token in ques_tokens:
+                            word_counter[token] += 1
+                            for char in token:
+                                char_counter[char] += 1
                     y1s, y2s = [], []
                     answer_texts = []
                     answer_tokens = []
@@ -379,8 +379,12 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
             char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-            char_counter, lower_word=config.lower_word)
+    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
+            char_counter, lower_word=config.lower_word, total=len(train_titles))
+    train_examples += dev_examples1
+    train_eval.update(dev_eval1)
+    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word,
+                                            titles=test_titles)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word,
                                             titles=test_titles)
 
