@@ -53,11 +53,11 @@ def process_file(filename, data_type, word_counter=None, char_counter=None, lowe
                 max_c = max(max_c, len(context_tokens))
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
-                # if word_counter is not None:
-                #     for token in context_tokens:
-                #         word_counter[token] += len(para["qas"])
-                #         for char in token:
-                #             char_counter[char] += len(para["qas"])
+                if word_counter is not None:
+                    for token in context_tokens:
+                        word_counter[token] += len(para["qas"])
+                        for char in token:
+                            char_counter[char] += len(para["qas"])
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
