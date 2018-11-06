@@ -14,8 +14,8 @@ https://github.com/HKUST-KnowComp/R-Net
 
 flags = tf.flags
 
-# home = os.path.expanduser("/nlp/shiyue/QANet/")
-home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+home = os.path.expanduser("/nlp/shiyue/QANet/")
+# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")

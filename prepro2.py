@@ -53,11 +53,11 @@ def process_file(filename, data_type, word_counter=None, char_counter=None, lowe
                 max_c = max(max_c, len(context_tokens))
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
-                # if word_counter is not None:
-                #     for token in context_tokens:
-                #         word_counter[token] += len(para["qas"])
-                #         for char in token:
-                #             char_counter[char] += len(para["qas"])
+                if word_counter is not None:
+                    for token in context_tokens:
+                        word_counter[token] += len(para["qas"])
+                        for char in token:
+                            char_counter[char] += len(para["qas"])
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
@@ -379,12 +379,12 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
             char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
-            char_counter, lower_word=config.lower_word, total=len(train_titles))
-    train_examples += dev_examples1
-    train_eval.update(dev_eval1)
-    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word,
-                                            titles=test_titles)
+    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
+            char_counter, lower_word=config.lower_word)
+    # train_examples += dev_examples1
+    # train_eval.update(dev_eval1)
+    # dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word,
+    #                                         titles=test_titles)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word,
                                             titles=test_titles)
 
