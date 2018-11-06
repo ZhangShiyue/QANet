@@ -85,7 +85,7 @@ class Model(object):
                                        self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
                                        config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye,
                                        config.decoder_layers)
-                self.loss = model.build_model(self.global_step)
+                self.loss, self.loss_ans = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
                                      tf.log(tf.cast(self.global_step, tf.float32) + 1))
@@ -121,6 +121,9 @@ class Model(object):
                 variables = tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES)
                 l2_loss = tf.contrib.layers.apply_regularization(regularizer, variables)
                 self.loss += l2_loss
+
+            if config.answer_sup_ratio is not None:
+                self.loss += float(config.answer_sup_ratio) * self.loss_ans
 
             if config.decay is not None:
                 self.var_ema = tf.train.ExponentialMovingAverage(config.decay)

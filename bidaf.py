@@ -111,9 +111,10 @@ class BiDAFGenerator(BiDAFModel):
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss
-        batch_loss = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step, use_pointer=self.use_pointer)
+        batch_loss, batch_loss_ans = self._compute_loss(outputs, oups, attn_ws, p_gens, global_step, use_pointer=self.use_pointer)
         loss = tf.reduce_mean(batch_loss)
-        return loss
+        loss_ans = tf.reduce_mean(batch_loss_ans)
+        return loss, loss_ans
 
     def model_encoder(self, attention_outputs, num_layers=3):
         with tf.variable_scope("Model_Encoder_Layer"):
@@ -291,10 +292,12 @@ class BiDAFGenerator(BiDAFModel):
 
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens, global_step, use_pointer):
         batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
+        batch_nums_q = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.QL])
         indices_c = tf.stack((batch_nums_c, self.c), axis=2)
         batch_nums = tf.expand_dims(tf.range(self.N), 1)
         weights = []
         crossents = []
+        answer_porbs = []
         for output, oup, attn_w, p_gen in zip(ouputs[:-1], oups[1:], attn_ws[:-1], p_gens[:-1]):
             # combine copy and generation probs
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
@@ -315,13 +318,18 @@ class BiDAFGenerator(BiDAFModel):
                 weight = tf.cond(global_step < -1,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32) * weight_add,
                                  lambda: tf.cast(tf.cast(target, tf.bool), tf.float32))
+                # answer suppression
+                indices_q = tf.stack((batch_nums_q, self.q), axis=2)
+                answer_porb = tf.reduce_sum(tf.gather_nd(final_dist, indices_q) * tf.to_float(self.q_mask), axis=-1)
             else:
                 crossent = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logit, labels=target)
                 weight = tf.cast(tf.cast(target, tf.bool), tf.float32)
             weights.append(weight)
             crossents.append(crossent * weight)
+            answer_porbs.append(answer_porb * weight)
         log_perps = tf.add_n(crossents) / (tf.add_n(weights) + 1e-12)
-        return log_perps
+        answer_sup = tf.add_n(answer_porbs) / (tf.add_n(weights) + 1e-12)
+        return log_perps, answer_sup
 
 
 class BiDAFRLGenerator(BiDAFGenerator):
