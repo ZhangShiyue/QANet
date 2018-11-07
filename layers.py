@@ -404,6 +404,37 @@ def vanilla_attention(queries, units, num_heads,
         return res, weights
 
 
+def location_attention(queries, units, num_heads,
+                        attns=None,
+                           memory=None,
+                           seq_len=None,
+                         causality=False,
+                         scope="Vanilla_Attention",
+                         reuse=None,
+                         mask=None,
+                         return_weights=False,
+                         bias=True,
+                         dropout=0.0):
+    with tf.variable_scope(scope, default_name="location_attention", reuse=reuse):
+        v = tf.get_variable("v", units, regularizer=regularizer,
+                            initializer=tf.zeros_initializer())
+        key = tf.expand_dims(conv(memory, units, name="memory_projection", reuse=reuse), 1)
+        query = tf.expand_dims(conv(queries, units, name="query_projection", reuse=reuse), 2)
+        attns = tf.expand_dims(attns, -1)
+        loc = conv(attns, units, name="attn_projection", reuse=reuse)
+
+        logits = tf.reduce_sum(v * tf.tanh(key + query + loc), [-1])
+        if mask is not None:
+            mask = tf.cast(tf.expand_dims(mask, 1), tf.int32)
+            logits = mask_logits(logits, mask)
+
+        weights = tf.nn.softmax(logits, name="attention_weights")
+        weights = tf.nn.dropout(weights, 1.0 - dropout)
+        res = tf.reduce_sum(tf.expand_dims(weights, -1) * tf.expand_dims(memory, 1), [2])
+        return res, weights
+
+
+
 def combine_last_two_dimensions(x):
     """Reshape x so that the last two dimension become one.
     Args:

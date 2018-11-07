@@ -1,5 +1,5 @@
 import tensorflow as tf
-from layers import conv, mask_logits, _linear, multihead_attention, vanilla_attention
+from layers import conv, mask_logits, _linear, multihead_attention, vanilla_attention, location_attention
 from qanet import BasicModel
 
 
@@ -94,7 +94,12 @@ class BiDAFGenerator(BiDAFModel):
         self.NVP = num_words + self.PL
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
-        self.attention_function = multihead_attention if attention_type == "dot" else vanilla_attention
+        if attention_type == "dot":
+            self.attention_function = multihead_attention
+        elif attention_type == "vanilla":
+            self.attention_function = vanilla_attention
+        elif attention_type == "location":
+            self.attention_function = location_attention
         self.layer = layer
         self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[6:6+layer]) if layer > 1 else self.cells[6]
 
@@ -136,6 +141,7 @@ class BiDAFGenerator(BiDAFModel):
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
             state = (c, h) if self.layer == 1 else [(c, h) for _ in range(self.layer)]
+            attn_w = tf.zeros((self.N, self.PL))
             attn_ws = []
             p_gens = []
             outputs = []
@@ -144,8 +150,9 @@ class BiDAFGenerator(BiDAFModel):
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
-                attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1, memory=memory,
-                                                   mask=self.c_mask, bias=False, return_weights=True)
+                attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1,
+                                                       attns=tf.expand_dims(attn_w, 1), memory=memory, mask=self.c_mask,
+                                                       bias=False, return_weights=True)
 
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
                 attn_ws.append(attn_w)
@@ -176,6 +183,7 @@ class BiDAFGenerator(BiDAFModel):
             prev, attn_w, p_gen = None, None, None
             prev_probs = tf.zeros((self.N, 1))
             symbols = []
+            attn_w = tf.zeros((self.N, 1, self.PL))
             attn_ws = []
             p_gens = []
             for i, inp in enumerate(oups):
@@ -196,7 +204,8 @@ class BiDAFGenerator(BiDAFModel):
                         symbols.append(prev_symbol)
 
                 attn, attn_w = self.attention_function(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
-                                                   memory=memory, mask=self.c_mask, bias=False, return_weights=True)
+                                                       attns=attn_w if i == 0 else attn_ws[-1], memory=memory,
+                                                       mask=self.c_mask, bias=False, return_weights=True)
                 attn_w = tf.reshape(attn_w, [self.N, -1, self.PL])
                 attn_ws.append(attn_w)
 
