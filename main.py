@@ -114,16 +114,16 @@ def train(config):
                     writer.add_summary(meteor_sum, global_step)
                     writer.flush()
 
-                    dev_f1 = metrics["f1"]
-                    dev_em = metrics["exact_match"]
-                    if dev_f1 < best_f1 and dev_em < best_em:
-                        patience += 1
-                        if patience > config.early_stop:
-                            break
-                    else:
-                        patience = 0
-                        best_em = max(best_em, dev_em)
-                        best_f1 = max(best_f1, dev_f1)
+                    # dev_f1 = metrics["f1"]
+                    # dev_em = metrics["exact_match"]
+                    # if dev_f1 < best_f1 and dev_em < best_em:
+                    #     patience += 1
+                    #     if patience > config.early_stop:
+                    #         break
+                    # else:
+                    #     patience = 0
+                    #     best_em = max(best_em, dev_em)
+                    #     best_f1 = max(best_f1, dev_f1)
 
 
 def train_rl(config):
