@@ -610,10 +610,21 @@ def test_reranked(config):
 
 
 def tmp(config):
-    with open(config.baseline_file, "r") as fh:
-        baseline_file = json.load(fh)
+    from util import normalize_answer, word_tokenize
+    with open(config.test_eval_file, "r") as fh:
+        test_eval_file = json.load(fh)
+    print len(test_eval_file)
+    questions = []
+    for key in test_eval_file:
+        que = test_eval_file[key]["questions"][0]
+        questions.append(' '.join(word_tokenize(que.strip().lower())))
+    questions = sorted(questions)
 
-    f1 = 0.
-    for key in baseline_file:
-        f1 += float(baseline_file[key])
-    print f1 / len(baseline_file)
+    lines = open("processed/tgt-test.txt", 'r').readlines()
+    lines = sorted(map(lambda x: x.strip().lower(), lines))
+
+    for que, line in zip(questions, lines):
+        print que
+        print line
+        print
+        exit()
