@@ -103,7 +103,6 @@ class BiDAFGenerator(BiDAFModel):
         self.layer = layer
         self.cell = tf.nn.rnn_cell.MultiRNNCell(self.cells[6:6+layer]) if layer > 1 else self.cells[6]
 
-
     def build_model(self, global_step):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
@@ -136,6 +135,11 @@ class BiDAFGenerator(BiDAFModel):
 
     def decode(self, a, reuse=None):
         with tf.variable_scope("Decoder_Layer", reuse=reuse):
+            # word mat with oov extension, because question may have words that are UNK and
+            # have ids larger than len(word_mat)
+            plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
+            word_mat = tf.concat([self.word_mat, plus_word_mat], axis=0)
+            # decoding
             memory = self.enc
             oups = tf.split(a, [1] * self.AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
@@ -146,7 +150,7 @@ class BiDAFGenerator(BiDAFModel):
             p_gens = []
             outputs = []
             for i, inp in enumerate(oups):
-                einp = tf.reshape(tf.nn.embedding_lookup(self.word_mat, inp), [self.N, self.dw])
+                einp = tf.reshape(tf.nn.embedding_lookup(word_mat, inp), [self.N, self.dw])
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
@@ -175,6 +179,11 @@ class BiDAFGenerator(BiDAFModel):
 
     def sample(self, beam_size):
         with tf.variable_scope("Decoder_Layer", reuse=True):
+            # word mat with oov extension, because question may have words that are UNK and
+            # have ids larger than len(word_mat)
+            plus_word_mat = tf.tile(tf.nn.embedding_lookup(self.word_mat, [1]), [self.PL, 1])
+            word_mat = tf.concat([self.word_mat, plus_word_mat], axis=0)
+            # sampling
             memory = self.enc
             oups = tf.split(self.a, [1] * self.AL, 1)
             h = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="h_initial"))
@@ -187,7 +196,7 @@ class BiDAFGenerator(BiDAFModel):
             attn_ws = []
             p_gens = []
             for i, inp in enumerate(oups):
-                einp = tf.nn.embedding_lookup(self.word_mat, inp)
+                einp = tf.nn.embedding_lookup(word_mat, inp)
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
                         einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen,
