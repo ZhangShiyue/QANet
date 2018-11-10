@@ -378,6 +378,7 @@ def dot_product_attention(q,
 
 
 def vanilla_attention(queries, units, num_heads,
+                      attns=None,
                      memory=None,
                      seq_len=None,
                      causality=False,
@@ -405,10 +406,10 @@ def vanilla_attention(queries, units, num_heads,
 
 
 def location_attention(queries, units, num_heads,
-                        attns=None,
-                           memory=None,
-                           seq_len=None,
-                         causality=False,
+                       attns=None,
+                       memory=None,
+                       seq_len=None,
+                       causality=False,
                          scope="Vanilla_Attention",
                          reuse=None,
                          mask=None,

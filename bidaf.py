@@ -181,6 +181,7 @@ class BiDAFGenerator(BiDAFModel):
         self.NVP = num_words + self.PL
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
+        self.attn_type = attention_type
         if attention_type == "dot":
             self.attention_function = multihead_attention
         elif attention_type == "vanilla":
@@ -237,8 +238,10 @@ class BiDAFGenerator(BiDAFModel):
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
+                attns = tf.expand_dims(attn_w, 1) if self.attn_type == "location" else None,
                 attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1,
-                                                       attns=tf.expand_dims(attn_w, 1), memory=memory, mask=self.c_mask,
+                                                       attns=attns,
+                                                       memory=memory, mask=self.c_mask,
                                                        bias=False, return_weights=True)
 
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
@@ -290,8 +293,9 @@ class BiDAFGenerator(BiDAFModel):
                             p_gens[j] = tf.gather_nd(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
+                attns = (attn_w if i == 0 else attn_ws[-1]) if self.attn_type == "location" else None
                 attn, attn_w = self.attention_function(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
-                                                       attns=attn_w if i == 0 else attn_ws[-1], memory=memory,
+                                                       attns=attns, memory=memory,
                                                        mask=self.c_mask, bias=False, return_weights=True)
                 attn_w = tf.reshape(attn_w, [self.N, -1, self.PL])
                 attn_ws.append(attn_w)
