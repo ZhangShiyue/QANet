@@ -247,7 +247,7 @@ class BiDAFGenerator(BiDAFModel):
                 attn_w = tf.reshape(attn_w, [-1, self.PL])
                 attn_ws.append(attn_w)
                 # update cell state
-                attn = tf.reshape(attn, [-1, self.d * 2])
+                attn = tf.reshape(attn, [-1, self.d])
                 cinp = tf.concat([einp, attn], 1)
                 h, state = self.cell(cinp, state)
 
@@ -304,13 +304,13 @@ class BiDAFGenerator(BiDAFModel):
                 cinp = tf.concat([einp, attn], -1)
                 state = tuple(tf.reshape(s, [-1, self.d]) for s in state) if self.layer == 1 else \
                     [tuple(tf.reshape(s, [-1, self.d]) for s in sta) for sta in state]
-                h, state = self.cell(tf.reshape(cinp, [-1, self.dw + self.d * 2]), state)
+                h, state = self.cell(tf.reshape(cinp, [-1, self.dw + self.d]), state)
                 h = tf.reshape(h, [self.N, -1, self.d])
                 state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state) if self.layer == 1 else \
                     [tuple(tf.reshape(s, [self.N, -1, self.d]) for s in sta) for sta in state]
 
                 with tf.variable_scope("AttnOutputProjection"):
-                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 3 + self.dw])
+                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 2 + self.dw])
                     # generation prob
                     p_gen = tf.sigmoid(_linear([oinp], output_size=1, bias=True, scope="gen_prob"))
                     p_gen = tf.reshape(p_gen, [self.N, -1, 1])

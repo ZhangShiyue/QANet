@@ -217,6 +217,7 @@ def self_attention_block_trans(inputs, num_filters, seq_len, memory=None, mask=N
 
 
 def multihead_attention(queries, units, num_heads,
+                        attns=None,
                         memory=None,
                         seq_len=None,
                         causality=False,
