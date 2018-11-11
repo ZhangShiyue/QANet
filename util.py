@@ -16,6 +16,7 @@ https://github.com/HKUST-KnowComp/R-Net
 def get_record_parser(config, is_test=False):
     def parse(example):
         para_limit = config.test_para_limit if is_test else config.para_limit
+        sent_limit = config.test_sent_limit if is_test else config.sent_limit
         ques_limit = config.test_ques_limit if is_test else config.ques_limit
         ans_limit = config.test_ans_limit if is_test else config.ans_limit
         char_limit = config.char_limit
@@ -24,11 +25,15 @@ def get_record_parser(config, is_test=False):
                                            features={
                                                "context_idxs": tf.FixedLenFeature([], tf.string),
                                                "context_idxs_ans": tf.FixedLenFeature([], tf.string),
+                                               "sent_idxs": tf.FixedLenFeature([], tf.string),
+                                               "sent_idxs_ans": tf.FixedLenFeature([], tf.string),
                                                "ques_idxs": tf.FixedLenFeature([], tf.string),
                                                "ques_idxs_ans": tf.FixedLenFeature([], tf.string),
                                                "ans_idxs": tf.FixedLenFeature([], tf.string),
                                                "context_char_idxs": tf.FixedLenFeature([], tf.string),
                                                "context_char_idxs_ans": tf.FixedLenFeature([], tf.string),
+                                               "sent_char_idxs": tf.FixedLenFeature([], tf.string),
+                                               "sent_char_idxs_ans": tf.FixedLenFeature([], tf.string),
                                                "ques_char_idxs": tf.FixedLenFeature([], tf.string),
                                                "ans_char_idxs": tf.FixedLenFeature([], tf.string),
                                                "y1": tf.FixedLenFeature([], tf.string),
@@ -40,6 +45,10 @@ def get_record_parser(config, is_test=False):
                 features["context_idxs"], tf.int32), [para_limit])
         context_idxs_ans = tf.reshape(tf.decode_raw(
                 features["context_idxs_ans"], tf.int32), [para_limit])
+        sent_idxs = tf.reshape(tf.decode_raw(
+                features["sent_idxs"], tf.int32), [sent_limit])
+        sent_idxs_ans = tf.reshape(tf.decode_raw(
+                features["sent_idxs_ans"], tf.int32), [sent_limit])
         ques_idxs = tf.reshape(tf.decode_raw(
                 features["ques_idxs"], tf.int32), [ques_limit])
         ques_idxs_ans = tf.reshape(tf.decode_raw(
@@ -50,6 +59,10 @@ def get_record_parser(config, is_test=False):
                 features["context_char_idxs"], tf.int32), [para_limit, char_limit])
         context_char_idxs_ans = tf.reshape(tf.decode_raw(
                 features["context_char_idxs_ans"], tf.int32), [para_limit, char_limit])
+        sent_char_idxs = tf.reshape(tf.decode_raw(
+                features["sent_char_idxs"], tf.int32), [sent_limit, char_limit])
+        sent_char_idxs_ans = tf.reshape(tf.decode_raw(
+                features["sent_char_idxs_ans"], tf.int32), [sent_limit, char_limit])
         ques_char_idxs = tf.reshape(tf.decode_raw(
                 features["ques_char_idxs"], tf.int32), [ques_limit, char_limit])
         ans_char_idxs = tf.reshape(tf.decode_raw(
@@ -60,8 +73,9 @@ def get_record_parser(config, is_test=False):
                 features["y2"], tf.float32), [para_limit])
         qa_id = features["id"]
 
-        return context_idxs, context_idxs_ans, ques_idxs, ques_idxs_ans, ans_idxs, context_char_idxs, \
-               context_char_idxs_ans, ques_char_idxs, ans_char_idxs, y1, y2, qa_id
+        return context_idxs, context_idxs_ans, sent_idxs, sent_idxs_ans, ques_idxs, ques_idxs_ans, ans_idxs, \
+               context_char_idxs, context_char_idxs_ans, sent_char_idxs, sent_char_idxs_ans, \
+               ques_char_idxs, ans_char_idxs, y1, y2, qa_id
 
     return parse
 
@@ -111,12 +125,13 @@ def convert_tokens(eval_file, qa_id, pp1, pp2):
     return answer_dict, remapped_dict
 
 
-def convert_tokens_g(eval_file, qa_id, symbols, id2word):
+def convert_tokens_g(eval_file, qa_id, symbols, id2word, is_sent=False):
     answer_dict = {}
     remapped_dict = {}
     for qid, syms in zip(qa_id, zip(*symbols)):
         uuid = eval_file[str(qid)]["uuid"]
-        context_tokens = eval_file[str(qid)]["context_tokens_ans"]
+        context_tokens = eval_file[str(qid)]["sent_tokens_ans"] if is_sent else \
+            eval_file[str(qid)]["context_tokens_ans"]
         if 3 in syms:
             syms = syms[:syms.index(3)]
         answer = u' '.join([id2word[sym] if sym in id2word

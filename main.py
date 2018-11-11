@@ -40,7 +40,8 @@ def train(config):
         train_iterator = train_dataset.make_one_shot_iterator()
         dev_iterator = dev_dataset.make_one_shot_iterator()
 
-        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, is_answer=config.is_answer, graph=g)
+        model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye,
+                      is_sent=config.is_sent, is_answer=config.is_answer, graph=g)
 
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
@@ -59,12 +60,16 @@ def train(config):
             train_next_element = train_iterator.get_next()
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
-                c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+                c, ca, s, sa, q, qa, a, ch, cha, sh, sha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
-                    model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
-                    model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
-                    model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
+                    model.c: sa if config.is_sent else (c if config.is_answer else ca),
+                    model.q: q if config.is_answer else a,
+                    model.a: a if config.is_answer else qa,
+                    model.ch: sha if config.is_sent else (ch if config.is_answer else cha),
+                    model.qh: qh if config.is_answer else ah,
+                    model.ah: ah if config.is_answer else qh,
+                    model.y1: y1, model.y2: y2, model.qa_id: qa_id,
+                    model.dropout: config.dropout})
                 if global_step % config.period == 0:
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="model/loss", simple_value=loss), ])
@@ -76,7 +81,8 @@ def train(config):
 
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
-                                             model_tpye=config.model_tpye, is_answer=config.is_answer)
+                                             model_tpye=config.model_tpye, is_answer=config.is_answer,
+                                             )
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -411,12 +417,12 @@ def train_dual(config):
 
 
 def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel",
-                   is_answer=True, is_test=False):
+                   is_sent=False, is_answer=True, is_test=False):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
-        c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(next_element)
+        c, ca, s, sa, q, qa, a, ch, cha, sh, sha, qh, ah, y1, y2, qa_id = sess.run(next_element)
         if model_tpye == "QANetModel" or model_tpye == "BiDAFModel":
             loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
                                         feed_dict={model.c: c, model.q: q, model.a: a,
@@ -429,12 +435,12 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
         elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator" \
                 or model_tpye == "BiDAFGenerator" or model_tpye == "BiDAFRLGenerator":
             loss, symbols = sess.run([model.loss, model.symbols],
-                                     feed_dict={model.c: c if config.is_answer else ca,
-                                                model.q: q if config.is_answer else a,
-                                                model.a: a if config.is_answer else qa,
-                                                model.ch: ch if config.is_answer else cha,
-                                                model.qh: qh if config.is_answer else ah,
-                                                model.ah: ah if config.is_answer else qh,
+                                     feed_dict={model.c: sa if is_sent else (c if is_answer else ca),
+                                                model.q: q if is_answer else a,
+                                                model.a: a if is_answer else qa,
+                                                model.ch: sha if is_sent else (ch if is_answer else cha),
+                                                model.qh: qh if is_answer else ah,
+                                                model.ah: ah if is_answer else qh,
                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
             answer_dict.update(answer_dict_)

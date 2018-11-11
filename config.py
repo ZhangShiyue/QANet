@@ -4,6 +4,7 @@ from prepro import prepro
 from prepro1 import prepro as prepro1
 from prepro2 import prepro as prepro2
 from prepro3 import prepro as prepro3
+from prepro2_sent import prepro as prepro2_sent
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
     test_rerank, test_reranked, tmp
 
@@ -14,8 +15,8 @@ https://github.com/HKUST-KnowComp/R-Net
 
 flags = tf.flags
 
-home = os.path.expanduser("/nlp/shiyue/QANet/")
-# home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
+# home = os.path.expanduser("/nlp/shiyue/QANet/")
+home = os.path.expanduser("/playpen1/home/shiyue/QANet/")
 train_file = os.path.join(home, "squad", "train-v1.1.json")
 dev_file = os.path.join(home, "squad", "dev-v1.1.json")
 test_file = os.path.join(home, "squad", "dev-v1.1.json")
@@ -28,11 +29,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new_que"
-log_dir = os.path.join(dir_name, "event_qg63")
-save_dir = os.path.join(dir_name, "model_qg63")
+target_dir = "data_new_sent"
+log_dir = os.path.join(dir_name, "event_qg_sent")
+save_dir = os.path.join(dir_name, "model_qg_sent")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg63")
+answer_dir = os.path.join(dir_name, "answer_qg_sent")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -62,6 +63,7 @@ if not os.path.exists(answer_dir):
 flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("attention_tpye", "location", "Model type")
+flags.DEFINE_boolean("is_sent", True, "Input sentence or paragraph")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "meteor", "The metric used to train rl")
@@ -142,9 +144,11 @@ flags.DEFINE_integer("glove_dim", 300, "Embedding dimension for Glove")
 flags.DEFINE_integer("char_dim", 64, "Embedding dimension for char")
 
 flags.DEFINE_integer("para_limit", 400, "Limit length for paragraph")
+flags.DEFINE_integer("sent_limit", 100, "Limit length for paragraph")
 flags.DEFINE_integer("ques_limit", 50, "Limit length for question")
 flags.DEFINE_integer("ans_limit", 30, "Limit length for answers")
 flags.DEFINE_integer("test_para_limit", 1000, "Limit length for paragraph in test file")
+flags.DEFINE_integer("test_sent_limit", 200, "Limit length for paragraph in test file")
 flags.DEFINE_integer("test_ques_limit", 100, "Limit length for question in test file")
 flags.DEFINE_integer("test_ans_limit", 50, "Limit length for answer in test file")
 flags.DEFINE_integer("char_limit", 16, "Limit length for character")
@@ -164,6 +168,8 @@ def main(_):
         prepro1(config)
     elif config.mode == "prepro2":
         prepro2(config)
+    elif config.mode == "prepro2_sent":
+        prepro2_sent(config)
     elif config.mode == "prepro3":
         prepro3(config)
     elif config.mode == "debug":
