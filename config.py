@@ -29,10 +29,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new_que"
-log_dir = os.path.join(dir_name, "event_qg65")
-save_dir = os.path.join(dir_name, "model_qg65")
+log_dir = os.path.join(dir_name, "event_qg66")
+save_dir = os.path.join(dir_name, "model_qg66")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg65")
+answer_dir = os.path.join(dir_name, "answer_qg66")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -120,7 +120,7 @@ flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
 flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
 flags.DEFINE_float("decay", None, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 3e-07, "L2 norm scale")
-flags.DEFINE_integer("hidden", 256, "Hidden size")
+flags.DEFINE_integer("hidden", 128, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
