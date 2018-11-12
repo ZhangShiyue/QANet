@@ -38,7 +38,8 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter=None, char_counter=None, lower_word=False, titles=None, total=0):
+def process_file(filename, data_type, word_counter=None, que_word_counter=None,
+                 char_counter=None, lower_word=False, titles=None, total=0):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
@@ -69,9 +70,9 @@ def process_file(filename, data_type, word_counter=None, char_counter=None, lowe
                     ques_tokens = ["--GO--"] + word_tokenize(ques) + ["--EOS--"]
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
-                    if word_counter is not None:
+                    if que_word_counter is not None:
                         for token in ques_tokens:
-                            word_counter[token] += 1
+                            que_word_counter[token] += 1
                             for char in token:
                                 char_counter[char] += 1
                     y1s, y2s = [], []
@@ -256,7 +257,7 @@ def convert_to_features(config, data, word2idx_dict, char2idx_dict):
 
 
 def build_features(config, examples, data_type, out_file, word2idx_dict,
-                   char2idx_dict, is_test=False):
+                   que_word2idx_dict, char2idx_dict, is_test=False):
     sent_limit = config.test_sent_limit if is_test else config.sent_limit
     ques_limit = config.test_ques_limit if is_test else config.ques_limit
     ans_limit = config.test_ans_limit if is_test else config.ans_limit
@@ -387,10 +388,10 @@ def save(filename, obj, message=None):
 def prepro(config):
     train_titles = map(lambda x: x.strip(), open("processed/doclist-train.txt", 'r').readlines())
     test_titles = map(lambda x: x.strip(), open("processed/doclist-test.txt", 'r').readlines())
-    word_counter, char_counter = Counter(), Counter()
-    train_examples, train_eval = process_file(config.train_file, "train", word_counter,
+    word_counter, que_word_counter, char_counter = Counter(), Counter(), Counter()
+    train_examples, train_eval = process_file(config.train_file, "train", word_counter, que_word_counter,
                                               char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
+    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter, que_word_counter,
                                             char_counter, lower_word=config.lower_word, total=len(train_examples))
     train_examples += dev_examples1
     train_eval.update(dev_eval1)
@@ -404,9 +405,12 @@ def prepro(config):
 
     word_emb_mat, word2idx_dict = get_embedding(word_counter, "word", emb_file=word_emb_file,
                                                 size=config.glove_word_size, vec_size=config.glove_dim,
-                                                limit=config.vocab_count_limit, size_limit=config.size_limit,
-                                                lower_word=config.lower_word)
+                                                limit=config.vocab_count_limit, lower_word=config.lower_word)
     print len(word2idx_dict)
+    que_word_emb_mat, que_word2idx_dict = get_embedding(que_word_counter, "word", emb_file=word_emb_file,
+                                                        size=config.glove_word_size, vec_size=config.glove_dim,
+                                                        limit=config.vocab_count_limit, lower_word=config.lower_word)
+    print len(que_word2idx_dict)
     char_emb_mat, char2idx_dict = get_embedding(char_counter, "char", emb_file=char_emb_file,
             size=char_emb_size, vec_size=char_emb_dim, limit=config.char_count_limit, lower_word=config.lower_word)
     print len(char2idx_dict)

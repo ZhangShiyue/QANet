@@ -58,7 +58,7 @@ def train(config):
                 global_step = sess.run(model.global_step) + 1
                 c, ca, q, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c if config.is_answer else ca ,
+                    model.c: c if config.is_answer else ca,
                     model.q: q if config.is_answer else a,
                     model.a: a if config.is_answer else q,
                     model.ch: cha,

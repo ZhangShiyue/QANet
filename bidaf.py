@@ -194,11 +194,11 @@ class BiDAFGenerator(BiDAFModel):
         # word, character embedding
         c_emb, q_emb = self.input_embedding()
         # input_encoder
-        # c, q = self.input_encoder(c_emb, q_emb)
+        c, q = self.input_encoder(c_emb, q_emb)
         # bidaf_attention
-        # attention_outputs = self.optimized_bidaf_attention(c, q)
+        attention_outputs = self.optimized_bidaf_attention(c, q)
         # model_encoder
-        self.enc = self.model_encoder([c_emb])
+        self.enc = self.model_encoder(attention_outputs)
         # answer generator
         outputs, oups, attn_ws, p_gens = self.decode(self.a)
         # compute loss
