@@ -287,6 +287,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
         ques_char_idxs = np.zeros([ques_limit, char_limit], dtype=np.int32)
         ans_idxs = np.zeros([ans_limit], dtype=np.int32)
         ans_char_idxs = np.zeros([ans_limit, char_limit], dtype=np.int32)
+        y1 = np.zeros([sent_limit], dtype=np.float32)
+        y2 = np.zeros([sent_limit], dtype=np.float32)
 
         start_sent = example["y1s_sent"][0]
 
@@ -364,6 +366,8 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
             "sent_char_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[sent_char_idxs_ans.tostring()])),
             "ques_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_char_idxs.tostring()])),
             "ans_char_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_char_idxs.tostring()])),
+            "y1": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y1.tostring()])),
+            "y2": tf.train.Feature(bytes_list=tf.train.BytesList(value=[y2.tostring()])),
             "id": tf.train.Feature(int64_list=tf.train.Int64List(value=[example["id"]]))
         }))
         writer.write(record.SerializeToString())

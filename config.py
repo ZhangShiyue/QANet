@@ -106,7 +106,7 @@ flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
-flags.DEFINE_integer("batch_size", 32, "Batch size")
+flags.DEFINE_integer("batch_size", 64, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
 flags.DEFINE_integer("num_steps", 50000, "Number of steps")

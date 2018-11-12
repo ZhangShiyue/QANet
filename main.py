@@ -46,10 +46,6 @@ def train(config):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
-        patience = 0
-        best_f1 = 0.
-        best_em = 0.
-
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter(config.log_dir)
             sess.run(tf.global_variables_initializer())
@@ -60,12 +56,12 @@ def train(config):
             train_next_element = train_iterator.get_next()
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
-                c, ca, s, sa, q, qa, a, ch, cha, sh, sha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+                c, ca, q, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: sa if config.is_sent else (c if config.is_answer else ca),
+                    model.c: c if config.is_answer else ca ,
                     model.q: q if config.is_answer else a,
-                    model.a: a if config.is_answer else qa,
-                    model.ch: sha if config.is_sent else (ch if config.is_answer else cha),
+                    model.a: a if config.is_answer else q,
+                    model.ch: cha,
                     model.qh: qh if config.is_answer else ah,
                     model.ah: ah if config.is_answer else qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id,
@@ -82,7 +78,7 @@ def train(config):
                     metrics = evaluate_batch(config, model, config.val_num_batches,
                                              train_eval_file, sess, train_iterator, id2word,
                                              model_tpye=config.model_tpye, is_answer=config.is_answer,
-                                             )
+                                             is_sent=config.is_sent)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -102,7 +98,8 @@ def train(config):
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                              dev_eval_file, sess, dev_iterator, id2word,
-                                             model_tpye=config.model_tpye, is_answer=config.is_answer)
+                                             model_tpye=config.model_tpye, is_answer=config.is_answer,
+                                             is_sent=config.is_sent)
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
@@ -119,17 +116,6 @@ def train(config):
                             tag="{}/meteor".format("dev"), simple_value=metrics["meteor"][0]*100), ])
                     writer.add_summary(meteor_sum, global_step)
                     writer.flush()
-
-                    # dev_f1 = metrics["f1"]
-                    # dev_em = metrics["exact_match"]
-                    # if dev_f1 < best_f1 and dev_em < best_em:
-                    #     patience += 1
-                    #     if patience > config.early_stop:
-                    #         break
-                    # else:
-                    #     patience = 0
-                    #     best_em = max(best_em, dev_em)
-                    #     best_f1 = max(best_f1, dev_f1)
 
 
 def train_rl(config):
@@ -422,7 +408,7 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     losses = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
-        c, ca, s, sa, q, qa, a, ch, cha, sh, sha, qh, ah, y1, y2, qa_id = sess.run(next_element)
+        c, ca, q, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(next_element)
         if model_tpye == "QANetModel" or model_tpye == "BiDAFModel":
             loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
                                         feed_dict={model.c: c, model.q: q, model.a: a,
@@ -435,14 +421,14 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
         elif model_tpye == "QANetGenerator" or model_tpye == "QANetRLGenerator" \
                 or model_tpye == "BiDAFGenerator" or model_tpye == "BiDAFRLGenerator":
             loss, symbols = sess.run([model.loss, model.symbols],
-                                     feed_dict={model.c: sa if is_sent else (c if is_answer else ca),
+                                     feed_dict={model.c: c if is_answer else ca,
                                                 model.q: q if is_answer else a,
-                                                model.a: a if is_answer else qa,
-                                                model.ch: sha if is_sent else (ch if is_answer else cha),
+                                                model.a: a if is_answer else q,
+                                                model.ch: ch if is_answer else cha,
                                                 model.qh: qh if is_answer else ah,
                                                 model.ah: ah if is_answer else qh,
                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
-            answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
+            answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word, is_sent=is_sent)
             answer_dict.update(answer_dict_)
         losses.append(loss)
     loss = np.mean(losses)
