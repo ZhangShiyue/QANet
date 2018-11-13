@@ -55,11 +55,11 @@ class BasicModel(object):
             c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.c), 1.0 - self.dropout)
             q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.q), 1.0 - self.dropout)
 
-            c_emb = tf.concat([c_emb, ch_emb], axis=2)
-            q_emb = tf.concat([q_emb, qh_emb], axis=2)
-
-            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
-            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
+            # c_emb = tf.concat([c_emb, ch_emb], axis=2)
+            # q_emb = tf.concat([q_emb, qh_emb], axis=2)
+            #
+            # c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
+            # q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
 
             return c_emb, q_emb
 
