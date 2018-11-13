@@ -466,13 +466,13 @@ def test(config):
         test_iterator = get_dataset(config.test_record_file, get_record_parser(
                 config, is_test=True), config, is_test=True).make_one_shot_iterator()
         model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, trainable=False,
-                      is_answer=config.is_answer, graph=g)
+                      is_answer=config.is_answer, is_sent=True, graph=g)
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(20, config.num_steps / config.checkpoint + 1):
+            for ckpt in range(8, config.num_steps / config.checkpoint + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
@@ -482,7 +482,7 @@ def test(config):
                 global_step = sess.run(model.global_step)
                 metrics = evaluate_batch(config, model, total // config.test_batch_size + 1,
                                          eval_file, sess, test_iterator, id2word, model_tpye=config.model_tpye,
-                                         is_answer=config.is_answer, is_test=True)
+                                         is_answer=config.is_answer, is_test=True, is_sent=True)
 
                 loss_sum = tf.Summary(value=[tf.Summary.Value(
                                 tag="{}/loss".format("test"), simple_value=metrics["loss"]), ])

@@ -13,7 +13,7 @@ class Model(object):
         with self.graph.as_default():
             self.N = config.batch_size if trainable else config.test_batch_size
             self.PL = config.para_limit if trainable else config.test_para_limit
-            self.SL = config.sent_limit if trainable else config.test_para_limit
+            self.SL = config.sent_limit if trainable else config.test_sent_limit
             self.QL = config.ques_limit if trainable else config.test_ques_limit
             self.AL = config.ans_limit if trainable else config.test_ans_limit
             self.CL = config.char_limit

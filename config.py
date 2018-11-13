@@ -29,11 +29,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new_sent4"
-log_dir = os.path.join(dir_name, "event_qg_sent7")
-save_dir = os.path.join(dir_name, "model_qg_sent7")
+target_dir = "data_new_sent"
+log_dir = os.path.join(dir_name, "event_qg_sent")
+save_dir = os.path.join(dir_name, "model_qg_sent")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_sent7")
+answer_dir = os.path.join(dir_name, "answer_qg_sent")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -108,7 +108,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 64, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
-flags.DEFINE_integer("beam_size", 1, "Beam size")
+flags.DEFINE_integer("beam_size", 7, "Beam size")
 flags.DEFINE_integer("num_steps", 30000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
