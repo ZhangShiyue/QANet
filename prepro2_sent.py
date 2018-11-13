@@ -153,7 +153,7 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
                 word = "".join(array[0:-vec_size])
                 vector = list(map(float, array[-vec_size:]))
                 if lower_word:
-                    word.lower()
+                    word = word.lower()
                 if word in filtered_elements:
                     embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
@@ -165,6 +165,9 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
                     scale=0.1) for _ in range(vec_size)]
         print("{} tokens have corresponding embedding vector".format(
                 len(filtered_elements)))
+
+    print set(filtered_elements.keys()) - set(embedding_dict)
+    exit()
 
     NULL = "--NULL--"
     OOV = "--OOV--"
