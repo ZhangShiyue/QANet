@@ -30,10 +30,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new_sent"
-log_dir = os.path.join(dir_name, "event_qg_sent9")
-save_dir = os.path.join(dir_name, "model_qg_sent9")
+log_dir = os.path.join(dir_name, "event_qg_sent10")
+save_dir = os.path.join(dir_name, "model_qg_sent10")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_sent9")
+answer_dir = os.path.join(dir_name, "answer_qg_sent10")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -114,7 +114,7 @@ flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the mo
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
 flags.DEFINE_integer("val_num_batches", 32, "Number of batches to evaluate the model")
-flags.DEFINE_float("dropout", 0.3, "Dropout prob across the layers")
+flags.DEFINE_float("dropout", 0.2, "Dropout prob across the layers")
 flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("answer_sup_ratio", None, "The mixing ratio between ml loss and rl loss")
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
