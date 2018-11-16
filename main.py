@@ -433,6 +433,191 @@ def train_dual(config):
             writer.flush()
 
 
+def train_gan(config):
+    with open(config.word_emb_file, "r") as fh:
+        word_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.char_emb_file, "r") as fh:
+        char_mat = np.array(json.load(fh), dtype=np.float32)
+    with open(config.train_eval_file, "r") as fh:
+        train_eval_file = json.load(fh)
+    with open(config.dev_eval_file, "r") as fh:
+        dev_eval_file = json.load(fh)
+    with open(config.dev_meta, "r") as fh:
+        meta = json.load(fh)
+    with open(config.word_dictionary, "r") as fh:
+        word_dictionary = json.load(fh)
+    with open(config.char_dictionary, "r") as fh:
+        char2idx_dict = json.load(fh)
+
+    id2word = {word_dictionary[w]: w for w in word_dictionary}
+    dev_total = meta["total"]
+    print("Building model...")
+    parser = get_record_parser(config)
+    graph = tf.Graph()
+    graph_dual = tf.Graph()
+    with graph.as_default():
+        train_dataset = get_batch_dataset(config.train_record_file, parser, config)
+        dev_dataset = get_dataset(config.dev_record_file, parser, config)
+        train_iterator = train_dataset.make_one_shot_iterator()
+        dev_iterator = dev_dataset.make_one_shot_iterator()
+
+    gen_model = Model(config, word_mat, char_mat, model_tpye=config.model_tpye, is_answer=config.is_answer, graph=graph)
+    dis_model = Model(config, word_mat, char_mat, model_tpye=config.dual_model_tpye, is_answer=config.is_answer_dual,
+                      is_dual=True, is_gan=True, graph=graph_dual)
+
+    sess = tf.Session(graph=graph)
+    sess_dual = tf.Session(graph=graph_dual)
+
+    writer = tf.summary.FileWriter(config.log_dir)
+    writer_dual = tf.summary.FileWriter(config.log_dir_dual)
+    with sess.as_default():
+        with graph.as_default():
+            sess.run(tf.global_variables_initializer())
+            saver = tf.train.Saver(max_to_keep=1000)
+            if os.path.exists(os.path.join(config.save_dir, "checkpoint")):
+                saver.restore(sess, tf.train.latest_checkpoint(config.save_dir))
+    with sess_dual.as_default():
+        with graph_dual.as_default():
+            sess_dual.run(tf.global_variables_initializer())
+            saver_dual = tf.train.Saver(max_to_keep=1000)
+            if os.path.exists(os.path.join(config.save_dir_dual, "checkpoint")):
+                saver_dual.restore(sess_dual, tf.train.latest_checkpoint(config.save_dir_dual))
+    global_step_gen = max(sess.run(gen_model.global_step), 1)
+    global_step_dis = max(sess_dual.run(dis_model.global_step), 1)
+    train_next_element = train_iterator.get_next()
+    for _ in tqdm(range(global_step_gen, config.num_steps + 1)):
+        global_step_gen = sess.run(gen_model.global_step) + 1
+        global_step_dis = sess_dual.run(dis_model.global_step) + 1
+        c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+        # samples for reward computing
+        symbols, symbols_rl = sess.run([gen_model.symbols, gen_model.symbols_rl], feed_dict={
+            gen_model.c: c if config.is_answer else ca, gen_model.q: q if config.is_answer else a,
+            gen_model.a: a if config.is_answer else qa, gen_model.ch: ch if config.is_answer else cha,
+            gen_model.qh: qh if config.is_answer else ah, gen_model.ah: ah if config.is_answer else qh,
+            gen_model.y1: y1, gen_model.y2: y2, gen_model.qa_id: qa_id})
+        # format sample for QA
+        ques_idxs, ques_char_idxs, ques_idxs_rl, ques_char_idxs_rl = \
+            format_generated_questions(train_eval_file, qa_id, symbols, symbols_rl, config.batch_size,
+                                       config.ques_limit, config.char_limit, id2word, char2idx_dict)
+        # QA reward
+        base_dual_loss, base_dual_byp1, base_dual_byp2, dual_loss, dual_byp1, dual_byp2, loss, loss_g, loss_t, _ = \
+            sess_dual.run(
+                [dis_model.batch_loss_g, dis_model.byp1, dis_model.byp2,
+                 dis_model.batch_loss_g_rl, dis_model.byp1_rl, dis_model.byp2,
+                 dis_model.loss, dis_model.loss_g, dis_model.loss_t, dis_model.train_op], feed_dict={
+                 dis_model.c: c, dis_model.ch: ch, dis_model.a: a, dis_model.ah: ah,
+                 dis_model.q: q, dis_model.qh: qh,
+                 dis_model.qg: ques_idxs, dis_model.qgh: ques_char_idxs,
+                 dis_model.qg_rl: ques_idxs_rl, dis_model.qgh_rl: ques_char_idxs_rl,
+                 dis_model.y1: y1, dis_model.y2: y2, dis_model.qa_id: qa_id})
+        reward, reward_rl, reward_base = evaluate_rl_dual(train_eval_file, qa_id, base_dual_byp1,
+                                                          base_dual_byp2, dual_byp1, dual_byp2,
+                                                          base_dual_loss, dual_loss,
+                                                          config.dual_rl_metric, config.has_baseline)
+        # train with rl
+        sa = format_sampled_questions(symbols_rl, config.batch_size, config.ques_limit)
+        loss_ml, _ = sess.run([gen_model.loss_ml, gen_model.train_op], feed_dict={
+            gen_model.c: ca, gen_model.q: a, gen_model.a: qa, gen_model.ch: cha,
+            gen_model.qh: ah, gen_model.ah: qh,
+            gen_model.y1: y1, gen_model.y2: y2, gen_model.qa_id: qa_id, gen_model.dropout: config.dropout,
+            gen_model.sa: sa, gen_model.reward: reward})
+        if global_step_gen % config.period == 0:
+            # qg
+            loss_ml_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/loss_ml", simple_value=loss_ml), ])
+            writer.add_summary(loss_ml_sum, global_step_gen)
+            reward_base_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/reward_base", simple_value=reward_base), ])
+            writer.add_summary(reward_base_sum, global_step_gen)
+            reward_rl_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/reward_rl", simple_value=reward_rl), ])
+            writer.add_summary(reward_rl_sum, global_step_gen)
+            # qa
+            loss_g_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/loss_g", simple_value=loss_g), ])
+            writer_dual.add_summary(loss_g_sum, global_step_gen)
+            loss_t_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/loss_t", simple_value=loss_t), ])
+            writer_dual.add_summary(loss_t_sum, global_step_gen)
+            loss_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="model/loss", simple_value=loss), ])
+            writer_dual.add_summary(loss_sum, global_step_gen)
+        if global_step_gen % config.checkpoint == 0:
+            # save model
+            filename = os.path.join(
+                    config.save_dir, "model_{}.ckpt".format(global_step_gen))
+            saver.save(sess, filename)
+            filename = os.path.join(
+                    config.save_dir_dual, "model_{}.ckpt".format(global_step_dis))
+            saver_dual.save(sess_dual, filename)
+
+            # evaluate qg
+            metrics = evaluate_batch(config, gen_model, config.val_num_batches,
+                                     train_eval_file, sess, train_iterator, id2word,
+                                     model_tpye=config.model_tpye, is_answer=config.is_answer)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                        tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
+            writer.add_summary(f1_sum, global_step_gen)
+            bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/bleu".format("train"), simple_value=metrics["bleu"][0] * 100), ])
+            writer.add_summary(bleu_sum, global_step_gen)
+            rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/rougeL".format("train"), simple_value=metrics["rougeL"] * 100), ])
+            writer.add_summary(rougeL_sum, global_step_gen)
+            meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/meteor".format("train"), simple_value=metrics["meteor"][0] * 100), ])
+            writer.add_summary(meteor_sum, global_step_gen)
+            writer.flush()
+
+            metrics = evaluate_batch(config, gen_model, dev_total // config.batch_size + 1,
+                                     dev_eval_file, sess, dev_iterator, id2word,
+                                     model_tpye=config.model_tpye, is_answer=config.is_answer)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
+            writer.add_summary(f1_sum, global_step_gen)
+            bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/bleu".format("dev"), simple_value=metrics["bleu"][0] * 100), ])
+            writer.add_summary(bleu_sum, global_step_gen)
+            rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/rougeL".format("dev"), simple_value=metrics["rougeL"] * 100), ])
+            writer.add_summary(rougeL_sum, global_step_gen)
+            meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/meteor".format("dev"), simple_value=metrics["meteor"][0] * 100), ])
+            writer.add_summary(meteor_sum, global_step_gen)
+            writer.flush()
+
+            # evaluate qa
+            metrics = evaluate_batch(config, dis_model, config.val_num_batches,
+                                     train_eval_file, sess, train_iterator, id2word,
+                                     model_tpye=config.dual_model_tpye, is_answer=config.is_answer_dual,
+                                     sess_dual=sess_dual)
+            loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
+            writer_dual.add_summary(loss_sum, global_step_dis)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
+            writer_dual.add_summary(f1_sum, global_step_dis)
+            em_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
+            writer_dual.add_summary(em_sum, global_step_dis)
+
+            metrics = evaluate_batch(config, dis_model, dev_total // config.batch_size + 1,
+                                     dev_eval_file, sess, dev_iterator, id2word,
+                                     model_tpye=config.dual_model_tpye, is_answer=config.is_answer_dual,
+                                     sess_dual=sess_dual)
+            loss_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
+            writer_dual.add_summary(loss_sum, global_step_dis)
+            f1_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
+            writer_dual.add_summary(f1_sum, global_step_dis)
+            em_sum = tf.Summary(value=[tf.Summary.Value(
+                    tag="{}/em".format("dev"), simple_value=metrics["exact_match"]), ])
+            writer_dual.add_summary(em_sum, global_step_dis)
+            writer_dual.flush()
+            exit()
+
+
 def train_rl_lm(config):
     with open(config.word_emb_file, "r") as fh:
         word_mat = np.array(json.load(fh), dtype=np.float32)
@@ -568,7 +753,7 @@ def train_rl_lm(config):
 
 
 def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2word, model_tpye="QANetModel",
-                   is_answer=True, is_test=False):
+                   is_answer=True, is_test=False, sess_dual=None):
     answer_dict = {}
     losses = []
     next_element = iterator.get_next()
@@ -594,6 +779,16 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
                                                 model.ah: ah if config.is_answer else qh,
                                                 model.qa_id: qa_id, model.y1: y1, model.y2: y2})
             answer_dict_, _ = convert_tokens_g(eval_file, qa_id, symbols, id2word)
+            answer_dict.update(answer_dict_)
+        elif model_tpye == "BiDAFModelDis":
+            loss, byp1, byp2 = sess_dual.run([model.loss_t, model.byp1, model.byp2],
+                                               feed_dict={model.c: c, model.ch: ch, model.a: a, model.ah: ah,
+                                                          model.q: q,  model.qh: qh, model.qg: q, model.qgh: qh,
+                                                          model.qg_rl: q, model.qgh_rl: qh,
+                                                          model.qa_id: qa_id, model.y1: y1, model.y2: y2})
+            yp1 = map(lambda x: x[0], byp1)
+            yp2 = map(lambda x: x[0], byp2)
+            answer_dict_, _ = convert_tokens(eval_file, qa_id, yp1, yp2)
             answer_dict.update(answer_dict_)
         losses.append(loss)
     loss = np.mean(losses)
@@ -723,7 +918,7 @@ def test(config):
                 writer.add_summary(em_sum, global_step)
                 if not config.is_answer:
                     bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/bleu".format("test"), simple_value=metrics["bleus"][0] * 100), ])
+                            tag="{}/bleu".format("test"), simple_value=metrics["bleu"][0] * 100), ])
                     writer.add_summary(bleu_sum, global_step)
                     rougeL_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/rougeL".format("test"), simple_value=metrics["rougeL"] * 100), ])
@@ -732,6 +927,7 @@ def test(config):
                             tag="{}/meteor".format("test"), simple_value=metrics["meteor"][0] * 100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
+
 
 def test_dual(config):
     with open(config.word_emb_file, "r") as fh:

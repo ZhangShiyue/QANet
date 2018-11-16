@@ -2,7 +2,7 @@ import os
 import tensorflow as tf
 from prepro import prepro
 from question_data import prepro as prepro_que
-from main import train, train_lm, train_rl, train_rl_lm, train_dual, test, test_lm, test_dual
+from main import train, train_lm, train_rl, train_rl_lm, train_dual, train_gan, test, test_lm, test_dual
 
 '''
 This file is taken and modified from R-Net by HKUST-KnowComp
@@ -26,10 +26,12 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new21"
-log_dir = os.path.join(dir_name, "event_qg35_rl_QAp1")
-save_dir = os.path.join(dir_name, "model_qg35_rl_QAp1")
-save_dir_dual = os.path.join(dir_name, "model_qlm")
-answer_dir = os.path.join(dir_name, "answer_qg35_rl_QAp1")
+log_dir = os.path.join(dir_name, "event_qg35_gan")
+save_dir = os.path.join(dir_name, "model_qg35_gan")
+answer_dir = os.path.join(dir_name, "answer_qg35_gan")
+log_dir_dual = os.path.join(dir_name, "event_qa22_dis")
+save_dir_dual = os.path.join(dir_name, "model_qa22_dis")
+answer_dir_dual = os.path.join(dir_name, "answer_qa22_dis")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -43,6 +45,7 @@ test_meta = os.path.join(target_dir, "test_meta.json")
 word_dictionary = os.path.join(target_dir, "word_dictionary.json")
 char_dictionary = os.path.join(target_dir, "char_dictionary.json")
 answer_file = os.path.join(answer_dir, "answer")
+answer_file_dual = os.path.join(answer_dir_dual, "answer")
 baseline_file = os.path.join(dir_name, "sanswer_que_gen/baseline_f1.json")
 
 question_dir = os.path.join(home, "data_que")
@@ -63,7 +66,7 @@ if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
 flags.DEFINE_string("model_tpye", "BiDAFRLGenerator", "Model type")
-flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
+flags.DEFINE_string("dual_model_tpye", "BiDAFModelDis", "Model type")
 flags.DEFINE_string("attention_tpye", "vanilla", "Model type")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
@@ -79,6 +82,7 @@ flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
 flags.DEFINE_string("log_dir", log_dir, "Directory for tf event")
 flags.DEFINE_string("save_dir", save_dir, "Directory for saving model")
+flags.DEFINE_string("log_dir_dual", log_dir_dual, "Directory for tf event")
 flags.DEFINE_string("save_dir_dual", save_dir_dual, "Directory for saving model")
 flags.DEFINE_string("train_file", train_file, "Train source file")
 flags.DEFINE_string("dev_file", dev_file, "Dev source file")
@@ -96,6 +100,7 @@ flags.DEFINE_string("test_eval_file", test_eval, "Out file for test eval")
 flags.DEFINE_string("dev_meta", dev_meta, "Out file for dev meta")
 flags.DEFINE_string("test_meta", test_meta, "Out file for test meta")
 flags.DEFINE_string("answer_file", answer_file, "Out file for answer")
+flags.DEFINE_string("answer_file_dual", answer_file_dual, "Out file for answer")
 flags.DEFINE_string("baseline_file", baseline_file, "baseline f1 scores")
 flags.DEFINE_string("word_dictionary", word_dictionary, "Word dictionary")
 flags.DEFINE_string("char_dictionary", char_dictionary, "Character dictionary")
@@ -113,7 +118,7 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 32, "Batch size")
 flags.DEFINE_integer("test_batch_size", 32, "Batch size")
-flags.DEFINE_integer("beam_size", 5, "Beam size")
+flags.DEFINE_integer("beam_size", 1, "Beam size")
 flags.DEFINE_integer("num_steps", 90000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
@@ -124,10 +129,10 @@ flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
 flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
 flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
-flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
+flags.DEFINE_float("decay", None, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 3e-07, "L2 norm scale")
 flags.DEFINE_integer("hidden", 256, "Hidden size")
-flags.DEFINE_integer("dual_hidden", 128, "Hidden size")
+flags.DEFINE_integer("dual_hidden", 256, "Hidden size")
 flags.DEFINE_integer("num_heads", 1, "Number of heads in self attention")
 flags.DEFINE_integer("early_stop", 10, "Checkpoints for early stop")
 
@@ -169,6 +174,8 @@ def main(_):
         train_lm(config)
     elif config.mode == "train_dual":
         train_dual(config)
+    elif config.mode == "train_gan":
+        train_gan(config)
     elif config.mode == "prepro":
         prepro(config)
     elif config.mode == "prepro_que":

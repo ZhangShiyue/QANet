@@ -1,12 +1,12 @@
 import tensorflow as tf
 from layers import regularizer, initializer, total_params
 from qanet import QANetModel, QANetGenerator, QANetRLGenerator
-from bidaf import BiDAFModel, BiDAFGenerator, BiDAFRLGenerator
+from bidaf import BiDAFModel, BiDAFGenerator, BiDAFRLGenerator, BiDAFModelDis
 
 
 class Model(object):
     def __init__(self, config, word_mat=None, char_mat=None, model_tpye="QANetModel", trainable=True,
-                 is_answer=True, is_dual=False, graph=None):
+                 is_answer=True, is_dual=False, is_gan=False, graph=None):
 
         self.config = config
         self.graph = graph if graph is not None else tf.Graph()
@@ -34,6 +34,14 @@ class Model(object):
             self.c_mask = tf.cast(self.c, tf.bool)
             self.q_mask = tf.cast(self.q, tf.bool)
             self.a_mask = tf.cast(self.a, tf.bool)
+
+            if is_gan:
+                self.qg = tf.placeholder(tf.int32, [self.N, self.QL], "question_gen")
+                self.qgh = tf.placeholder(tf.int32, [self.N, self.QL, self.CL], "question_gen_char")
+                self.qg_mask = tf.cast(self.qg, tf.bool)
+                self.qg_rl = tf.placeholder(tf.int32, [self.N, self.QL], "question_gen_rl")
+                self.qgh_rl = tf.placeholder(tf.int32, [self.N, self.QL, self.CL], "question_gen_char_rl")
+                self.qg_mask_rl = tf.cast(self.qg_rl, tf.bool)
 
             self.reward = tf.placeholder_with_default(tf.ones([self.N]), (self.N), name="reward")
             self.sa = tf.placeholder_with_default(tf.zeros([self.N, self.AL], dtype=tf.int32),
@@ -115,6 +123,17 @@ class Model(object):
                 self.lr = tf.cond(self.global_step < config.pre_step, lambda: tf.minimum(config.ml_learning_rate,
                                   0.001 / tf.log(999.) * tf.log(tf.cast(self.global_step, tf.float32) + 1)),
                                   lambda: config.rl_learning_rate)
+            elif model_tpye == "BiDAFModelDis":
+                model = BiDAFModelDis(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh,
+                                      self.qg, self.qg_mask, self.qgh, self.qg_rl, self.qg_mask_rl, self.qgh_rl,
+                                      self.y1, self.y2, self.word_mat, self.char_mat, self.dropout, self.N,
+                                      self.PL, self.QL, self.AL, self.CL, self.hidden, config.char_dim, config.glove_dim)
+                self.batch_loss_g, self.batch_loss_g_rl, self.loss, self.loss_g, self.loss_t = model.build_model(self.global_step)
+                self.byp1, self.byp2, self.bprobs = model.sample(config.beam_size, model.logits1_t, model.logits2_t)
+                self.byp1_g, self.byp2_g, self.bprobs_g = model.sample(config.beam_size, model.logits1_g, model.logits2_g)
+                self.byp1_rl, self.byp2_rl, self.bprobs_rl = model.sample(config.beam_size, model.logits1_g_rl, model.logits2_g_rl)
+                self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
+                                     tf.log(tf.cast(self.global_step, tf.float32) + 1))
             total_params()
 
             if config.l2_norm is not None:

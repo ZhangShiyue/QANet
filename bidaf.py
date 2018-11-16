@@ -1,6 +1,91 @@
 import tensorflow as tf
-from layers import conv, mask_logits, _linear, multihead_attention, vanilla_attention
-from qanet import BasicModel
+from layers import conv, mask_logits, _linear, multihead_attention, vanilla_attention, \
+    trilinear, highway, optimized_trilinear_for_attention
+
+
+class BasicModel(object):
+    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
+                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim):
+        self.c = context
+        self.c_mask = context_mask
+        self.ch = context_char
+        self.q = question
+        self.q_mask = question_mask
+        self.qh = ques_char
+        self.y1 = y1
+        self.y2 = y2
+        self.word_mat = word_mat
+        self.char_mat = char_mat
+
+        self.dropout = dropout
+        self.N = batch_size
+        self.PL = para_limit
+        self.QL = ques_limit
+        self.AL = ans_limit
+        self.CL = char_limit
+        self.d = hidden
+        self.dc = char_dim
+        self.dw = word_dim
+
+    def input_embedding(self):
+        with tf.variable_scope("Input_Embedding_Layer"):
+            ch_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.ch), [self.N * self.PL, self.CL, self.dc])
+            qh_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, self.qh), [self.N * self.QL, self.CL, self.dc])
+            ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
+            qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
+
+            # Bidaf style conv-highway encoder
+            ch_emb = conv(ch_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
+                          reuse=None)
+            qh_emb = conv(qh_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
+                          reuse=True)
+
+            ch_emb = tf.reduce_max(ch_emb, axis=1)
+            qh_emb = tf.reduce_max(qh_emb, axis=1)
+
+            ch_emb = tf.reshape(ch_emb, [self.N, self.PL, ch_emb.shape[-1]])
+            qh_emb = tf.reshape(qh_emb, [self.N, self.QL, qh_emb.shape[-1]])
+
+            c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.c), 1.0 - self.dropout)
+            q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, self.q), 1.0 - self.dropout)
+
+            c_emb = tf.concat([c_emb, ch_emb], axis=2)
+            q_emb = tf.concat([q_emb, qh_emb], axis=2)
+
+            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
+            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
+
+            return c_emb, q_emb
+
+    def bidaf_attention(self, c, q):
+        with tf.variable_scope("BiDAF"):
+            # BiDAF
+            C = tf.tile(tf.expand_dims(c, 2), [1, 1, self.QL, 1])
+            Q = tf.tile(tf.expand_dims(q, 1), [1, self.PL, 1, 1])
+            S = trilinear([C, Q, C * Q], input_keep_prob=1.0 - self.dropout)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs = [c, self.c2q, c * self.c2q, c * self.q2c]
+            return attention_outputs
+
+    def optimized_bidaf_attention(self, c, q):
+        with tf.variable_scope("BiDAF"):
+            S = optimized_trilinear_for_attention([c, q], self.PL, self.QL, input_keep_prob=1.0 - self.dropout)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs = [c, self.c2q, c * self.c2q, c * self.q2c]
+            return attention_outputs
 
 
 class BiDAFModel(BasicModel):
@@ -78,6 +163,7 @@ class BiDAFModel(BasicModel):
                                       1, bias=False, name="end_pointer"), -1)
             logits2 = mask_logits(tf.reshape(logits2, [self.N, -1]), tf.reshape(self.c_mask, [self.N, -1]))
             return logits1, logits2
+
 
 
 class BiDAFGenerator(BiDAFModel):
@@ -414,3 +500,158 @@ class BiDAFRLGenerator(BiDAFGenerator):
         emb_prev = tf.nn.embedding_lookup(tf.concat([self.word_mat, plus_word_mat], axis=0), prev_symbol)
 
         return emb_prev, prev_symbol
+
+
+class BiDAFModelDis(object):
+    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char,
+                 question_gen, question_gen_mask, ques_gen_char, question_gen_rl, question_gen_mask_rl, ques_gen_char_rl,
+                 y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
+                 char_limit, hidden, char_dim, word_dim):
+        self.c = context
+        self.c_mask = context_mask
+        self.ch = context_char
+
+        # groundtruth
+        self.q = question
+        self.q_mask = question_mask
+        self.qh = ques_char
+        # greedy search baseline
+        self.qg = question_gen
+        self.qg_mask = question_gen_mask
+        self.qgh = ques_gen_char
+        # sampled
+        self.qg_rl = question_gen_rl
+        self.qg_mask_rl = question_gen_mask_rl
+        self.qgh_rl = ques_gen_char_rl
+
+        self.y1 = y1
+        self.y2 = y2
+        self.word_mat = word_mat
+        self.char_mat = char_mat
+
+        self.dropout = dropout
+        self.N = batch_size
+        self.PL = para_limit
+        self.QL = ques_limit
+        self.AL = ans_limit
+        self.CL = char_limit
+        self.d = hidden
+        self.dc = char_dim
+        self.dw = word_dim
+
+        self.c_len = tf.reduce_sum(tf.cast(self.c_mask, tf.int32), axis=-1)
+        self.q_len = tf.reduce_sum(tf.cast(self.q_mask, tf.int32), axis=-1)
+        self.qg_len = tf.reduce_sum(tf.cast(self.qg_mask, tf.int32), axis=-1)
+        self.qg_len_rl = tf.reduce_sum(tf.cast(self.qg_mask_rl, tf.int32), axis=-1)
+
+        self.cells = []
+        for i in range(8):
+            self.cells.append(tf.nn.rnn_cell.DropoutWrapper(tf.nn.rnn_cell.BasicLSTMCell(hidden),
+                                                            input_keep_prob=1.0 - self.dropout))
+
+    def input_embedding(self, c, ch, reuse=None):
+        with tf.variable_scope("Input_Embedding_Layer", reuse=reuse):
+            PL = c.shape[-1]
+            ch_emb = tf.reshape(tf.nn.embedding_lookup(
+                    self.char_mat, ch), [self.N * PL, self.CL, self.dc])
+            ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
+            # Bidaf style conv-highway encoder
+            ch_emb = conv(ch_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
+                          reuse=None)
+            ch_emb = tf.reduce_max(ch_emb, axis=1)
+            ch_emb = tf.reshape(ch_emb, [self.N, PL, ch_emb.shape[-1]])
+            c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.word_mat, c), 1.0 - self.dropout)
+            c_emb = tf.concat([c_emb, ch_emb], axis=2)
+            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
+            return c_emb
+
+    def build_model(self, global_step):
+        # word, character embedding
+        c_emb = self.input_embedding(self.c, self.ch)
+        q_emb = self.input_embedding(self.q, self.qh, reuse=True)
+        qg_emb = self.input_embedding(self.qg, self.qgh, reuse=True)
+        qg_emb_rl = self.input_embedding(self.qg_rl, self.qgh_rl, reuse=True)
+        # input encoder, bilstm
+        c = self.input_encoder(c_emb, self.c_len)
+        q = self.input_encoder(q_emb, self.q_len, reuse=True)
+        qg = self.input_encoder(qg_emb, self.qg_len, reuse=True)
+        qg_rl = self.input_encoder(qg_emb_rl, self.qg_len_rl, reuse=True)
+        # bi attention
+        attention_outputs_t = self.optimized_bidaf_attention(c, q)
+        attention_outputs_g = self.optimized_bidaf_attention(c, qg, reuse=True)
+        attention_outputs_g_rl = self.optimized_bidaf_attention(c, qg_rl, reuse=True)
+        # get logits
+        self.logits1_t, self.logits2_t = self.model_encoder(attention_outputs_t)
+        self.logits1_g, self.logits2_g = self.model_encoder(attention_outputs_g, reuse=True)
+        self.logits1_g_rl, self.logits2_g_rl = self.model_encoder(attention_outputs_g_rl, reuse=True)
+        # get loss
+        losses_t = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits1_t, labels=tf.reshape(self.y1, [self.N, -1]))
+        losses_g = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits1_g, labels=tf.reshape(self.y1, [self.N, -1]))
+        losses_g_rl = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits1_g_rl, labels=tf.reshape(self.y1, [self.N, -1]))
+        losses2_t = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits2_t, labels=tf.reshape(self.y2, [self.N, -1]))
+        losses2_g = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits2_g, labels=tf.reshape(self.y2, [self.N, -1]))
+        losses2_g_rl = tf.nn.softmax_cross_entropy_with_logits(logits=self.logits2_g_rl, labels=tf.reshape(self.y2, [self.N, -1]))
+        batch_loss_t = losses_t + losses2_t
+        batch_loss_g = losses_g + losses2_g
+        batch_loss_g_rl = losses_g_rl + losses2_g_rl
+        loss_t = tf.reduce_mean(batch_loss_t)
+        loss_g = tf.reduce_mean(batch_loss_g)
+        loss = tf.maximum(0., 1. + loss_t - loss_g)
+        return batch_loss_g, batch_loss_g_rl, loss, loss_g, loss_t
+
+    def sample(self, beam_size, logits1, logits2):
+        outer = tf.matmul(tf.expand_dims(tf.nn.softmax(logits1), axis=2),
+                          tf.expand_dims(tf.nn.softmax(logits2), axis=1))
+        outer = tf.matrix_band_part(outer, 0, self.AL)
+        bprobs, bindex = tf.nn.top_k(tf.reshape(outer, [-1, self.PL * self.PL]), k=beam_size)
+        byp1 = bindex // self.PL
+        byp2 = bindex % self.PL
+        bprobs = -tf.log(bprobs)
+        return byp1, byp2, bprobs
+
+    def input_encoder(self, c_emb, c_len, reuse=None):
+        with tf.variable_scope("Input_Encoder_Layer", reuse=reuse):
+            (ch_fw, ch_bw), _ = tf.nn.bidirectional_dynamic_rnn(self.cells[0], self.cells[1], c_emb,
+                                                                sequence_length=c_len,
+                                                                dtype='float', scope='input_encoder')
+            c = tf.concat([ch_fw, ch_bw], axis=-1)
+            return c
+
+    def optimized_bidaf_attention(self, c, q, reuse=None):
+        with tf.variable_scope("BiDAF", reuse=reuse):
+            S = optimized_trilinear_for_attention([c, q], self.PL, self.QL, input_keep_prob=1.0 - self.dropout)
+            mask_q = tf.expand_dims(self.q_mask, 1)
+            S_ = tf.nn.softmax(mask_logits(S, mask=mask_q))
+            mask_c = tf.expand_dims(self.c_mask, 2)
+            S_T = tf.transpose(tf.nn.softmax(mask_logits(S, mask=mask_c), dim=1), (0, 2, 1))
+            self.c2q = tf.matmul(S_, q)
+            self.q2c = tf.matmul(tf.matmul(S_, S_T), c)
+            attention_outputs = [c, self.c2q, c * self.c2q, c * self.q2c]
+            return attention_outputs
+
+    def model_encoder(self, attention_outputs, reuse=None):
+        with tf.variable_scope("Model_Encoder_Layer", reuse=reuse):
+            p0 = tf.reshape(tf.concat(attention_outputs, axis=-1), [self.N, self.PL, -1])
+            (g0h_fw, g0h_bw), _ = tf.nn.bidirectional_dynamic_rnn(self.cells[2], self.cells[3], p0,
+                                                                  sequence_length=self.c_len,
+                                                                  dtype='float', scope="g0")
+            g0 = tf.concat([g0h_fw, g0h_bw], axis=-1)
+            (g1h_fw, g1h_bw), _ = tf.nn.bidirectional_dynamic_rnn(self.cells[4], self.cells[5], g0,
+                                                                  sequence_length=self.c_len,
+                                                                  dtype='float', scope='g1')
+            g1 = tf.concat([g1h_fw, g1h_bw], axis=-1)
+            logits1 = tf.squeeze(conv(tf.nn.dropout(tf.concat([g1, p0], axis=-1), keep_prob=1.0 - self.dropout),
+                                      1, bias=False, name="start_pointer"), -1)
+            logits1 = mask_logits(tf.reshape(logits1, [self.N, -1]), tf.reshape(self.c_mask, [self.N, -1]))
+
+            ali = tf.reduce_sum(tf.expand_dims(tf.nn.softmax(logits1), -1) * g1, [1])
+            ali = tf.tile(tf.expand_dims(ali, 1), [1, self.PL, 1])
+
+            (g2h_fw, g2h_bw), _ = tf.nn.bidirectional_dynamic_rnn(self.cells[6], self.cells[7],
+                                                                  tf.concat([p0, g1, ali, g1 * ali], axis=-1),
+                                                                  self.c_len, dtype='float', scope='g2')
+            g2 = tf.concat([g2h_fw, g2h_bw], axis=-1)
+            logits2 = tf.squeeze(conv(tf.nn.dropout(tf.concat([g2, p0], axis=-1), keep_prob=1.0 - self.dropout),
+                                      1, bias=False, name="end_pointer"), -1)
+            logits2 = mask_logits(tf.reshape(logits2, [self.N, -1]), tf.reshape(self.c_mask, [self.N, -1]))
+            return logits1, logits2
