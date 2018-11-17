@@ -26,10 +26,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new21"
-log_dir = os.path.join(dir_name, "event_qg35_rl_QAp2")
-save_dir = os.path.join(dir_name, "model_qg35_rl_QAp2")
-save_dir_dual = os.path.join(dir_name, "model_qa26_tmp")
-answer_dir = os.path.join(dir_name, "answer_qg35_rl_QAp2")
+log_dir = os.path.join(dir_name, "event_qg35_rl_QAp3")
+save_dir = os.path.join(dir_name, "model_qg35_rl_QAp3")
+save_dir_dual = os.path.join(dir_name, "model_qa26_tmp1")
+answer_dir = os.path.join(dir_name, "answer_qg35_rl_QAp3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -124,7 +124,7 @@ flags.DEFINE_float("mixing_ratio", 0.9, "The mixing ratio between ml loss and rl
 flags.DEFINE_float("grad_clip", 5.0, "Global Norm gradient clipping rate")
 flags.DEFINE_float("ml_learning_rate", 0.001, "Learning rate")
 flags.DEFINE_float("rl_learning_rate", 0.00001, "Learning rate")
-flags.DEFINE_float("decay", 0.9999, "Exponential moving average decay")
+flags.DEFINE_float("decay", None, "Exponential moving average decay")
 flags.DEFINE_float("l2_norm", 3e-07, "L2 norm scale")
 flags.DEFINE_integer("hidden", 256, "Hidden size")
 flags.DEFINE_integer("dual_hidden", 128, "Hidden size")
