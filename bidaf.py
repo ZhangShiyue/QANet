@@ -109,7 +109,7 @@ class BiDAFModel(BasicModel):
 
     def build_model(self, global_step):
         # word, character embedding
-        c_emb, q_emb = self.input_embedding()
+        c_emb, q_emb = self.input_embedding(dropout=0.1)
         c, q = self.input_encoder(c_emb, q_emb)
         attention_outputs = self.optimized_bidaf_attention(c, q)
         self.logits1, self.logits2 = self.model_encoder(attention_outputs)
@@ -192,7 +192,7 @@ class BiDAFGenerator(BiDAFModel):
 
     def build_model(self, global_step):
         # word, character embedding
-        c_emb, q_emb = self.input_embedding()
+        c_emb, q_emb = self.input_embedding(dropout=0.1)
         # input_encoder
         c, q = self.input_encoder(c_emb, q_emb)
         # bidaf_attention

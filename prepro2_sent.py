@@ -166,9 +166,6 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
         print("{} tokens have corresponding embedding vector".format(
                 len(filtered_elements)))
 
-    print set(filtered_elements.keys()) - set(embedding_dict)
-    exit()
-
     NULL = "--NULL--"
     OOV = "--OOV--"
     GO  = "--GO--"
@@ -393,11 +390,11 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
                                               char_counter, lower_word=config.lower_word, titles=train_titles)
-    # dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
-    #                                         char_counter, lower_word=config.lower_word, total=len(train_examples))
+    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
+                                            char_counter, lower_word=config.lower_word)
     # train_examples += dev_examples1
     # train_eval.update(dev_eval1)
-    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
+    # dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word, titles=test_titles)
 
     word_emb_file = config.glove_word_file
@@ -410,8 +407,9 @@ def prepro(config):
                                                 limit=config.vocab_count_limit, size_limit=config.size_limit,
                                                 lower_word=config.lower_word)
     print len(word2idx_dict)
-    char_emb_mat, char2idx_dict = get_embedding(char_counter, "char", emb_file=char_emb_file,
-            size=char_emb_size, vec_size=char_emb_dim, limit=config.char_count_limit, lower_word=config.lower_word)
+    char_emb_mat, char2idx_dict = get_embedding(char_counter, "char", emb_file=char_emb_file, size=char_emb_size,
+                                                vec_size=char_emb_dim, limit=config.char_count_limit,
+                                                lower_word=config.lower_word)
     print len(char2idx_dict)
 
     build_features(config, train_examples, "train", config.train_record_file, word2idx_dict, char2idx_dict)

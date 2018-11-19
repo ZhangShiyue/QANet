@@ -4,7 +4,7 @@ from prepro import prepro
 from prepro1 import prepro as prepro1
 from prepro2 import prepro as prepro2
 from prepro3 import prepro as prepro3
-# from prepro2_sent import prepro as prepro2_sent
+from prepro2_sent import prepro as prepro2_sent
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
     test_rerank, test_reranked, tmp
 
@@ -29,11 +29,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new_sent"
-log_dir = os.path.join(dir_name, "event_qg_sent")
-save_dir = os.path.join(dir_name, "model_qg_sent")
+target_dir = "data_new_sent1"
+log_dir = os.path.join(dir_name, "event_qg_sent1")
+save_dir = os.path.join(dir_name, "model_qg_sent1")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_sent")
+answer_dir = os.path.join(dir_name, "answer_qg_sent1")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -106,7 +106,7 @@ flags.DEFINE_integer("num_threads", 4, "Number of threads in input pipeline")
 flags.DEFINE_boolean("is_bucket", False, "build bucket batch iterator or not")
 flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
-flags.DEFINE_integer("batch_size", 32, "Batch size")
+flags.DEFINE_integer("batch_size", 64, "Batch size")
 flags.DEFINE_integer("test_batch_size", 64, "Batch size")
 flags.DEFINE_integer("beam_size", 1, "Beam size")
 flags.DEFINE_integer("num_steps", 30000, "Number of steps")
