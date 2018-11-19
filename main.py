@@ -504,7 +504,6 @@ def test(config):
                             tag="{}/meteor".format("test"), simple_value=metrics["meteor"][0]*100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
-                exit()
 
 
 def test_beam(config):
