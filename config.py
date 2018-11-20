@@ -30,10 +30,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new_sent1"
-log_dir = os.path.join(dir_name, "event_qg_sent3")
-save_dir = os.path.join(dir_name, "model_qg_sent3")
+log_dir = os.path.join(dir_name, "event_qg_sent4")
+save_dir = os.path.join(dir_name, "model_qg_sent4")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_sent3")
+answer_dir = os.path.join(dir_name, "answer_qg_sent4")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -62,7 +62,7 @@ if not os.path.exists(answer_dir):
 
 flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
-flags.DEFINE_string("attention_tpye", "location", "Model type")
+flags.DEFINE_string("attention_tpye", "vanilla", "Model type")
 flags.DEFINE_boolean("is_sent", True, "Input sentence or paragraph")
 flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
@@ -73,7 +73,7 @@ flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
 flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
-flags.DEFINE_boolean("input_feeding", True, "Use input feeding or not")
+flags.DEFINE_boolean("input_feeding", False, "Use input feeding or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")

@@ -378,6 +378,7 @@ def dot_product_attention(q,
 
 
 def vanilla_attention(queries, units, num_heads,
+                      attns=None,
                      memory=None,
                      seq_len=None,
                      causality=False,
