@@ -171,7 +171,7 @@ class BiDAFModel(BasicModel):
 class BiDAFGenerator(BiDAFModel):
     def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
                  ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
-                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type, layer):
+                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type, layer, input_feeding):
         BiDAFModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
                             char_limit, hidden, char_dim, word_dim, if_plus_word=True)
@@ -181,6 +181,7 @@ class BiDAFGenerator(BiDAFModel):
         self.NVP = num_words + self.PL
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
+        self.input_feeding = input_feeding
         if attention_type == "dot":
             self.attention_function = multihead_attention
         elif attention_type == "vanilla":
@@ -229,11 +230,14 @@ class BiDAFGenerator(BiDAFModel):
             c = tf.tanh(_linear(tf.reduce_mean(memory, axis=1), output_size=self.d, bias=False, scope="c_initial"))
             state = (c, h) if self.layer == 1 else [(c, h) for _ in range(self.layer)]
             attn_w = tf.zeros((self.N, self.PL))
+            output = tf.zeros((self.N, self.dw))
             attn_ws = []
             p_gens = []
             outputs = []
             for i, inp in enumerate(oups):
                 einp = tf.reshape(tf.nn.embedding_lookup(self.plus_word_mat, inp), [self.N, self.dw])
+                if self.input_feeding:
+                    einp = tf.concat([einp, output], axis=-1)
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
@@ -271,14 +275,19 @@ class BiDAFGenerator(BiDAFModel):
             prev_probs = tf.zeros((self.N, 1))
             symbols = []
             attn_w = tf.zeros((self.N, 1, self.PL))
+            output0 = tf.zeros((self.N, 1, self.dw))
             attn_ws = []
             p_gens = []
             for i, inp in enumerate(oups):
                 einp = tf.nn.embedding_lookup(self.plus_word_mat, inp)
+                if self.input_feeding:
+                    einp = tf.concat([einp, output0], axis=-1)
                 if prev is not None:
                     with tf.variable_scope("loop_function", reuse=True):
                         einp, prev_probs, index, prev_symbol = self.loop_function(beam_size, prev, attn_w, p_gen,
                                                                                   prev_probs, i)
+                        if self.input_feeding:
+                            einp = tf.concat([einp, prev], axis=-1)
                         h = tf.gather_nd(h, index)  # update prev state
                         state = tuple(tf.gather_nd(s, index) for s in state) if self.layer == 1 else \
                             [tuple(tf.gather_nd(s, index) for s in sta) for sta in state]  # update prev state
@@ -298,15 +307,16 @@ class BiDAFGenerator(BiDAFModel):
 
                 # update cell state
                 cinp = tf.concat([einp, attn], -1)
+                cinp_dim = cinp.shape[-1]
                 state = tuple(tf.reshape(s, [-1, self.d]) for s in state) if self.layer == 1 else \
                     [tuple(tf.reshape(s, [-1, self.d]) for s in sta) for sta in state]
-                h, state = self.cell(tf.reshape(cinp, [-1, self.dw + self.d * 2]), state)
+                h, state = self.cell(tf.reshape(cinp, [-1, cinp_dim]), state)
                 h = tf.reshape(h, [self.N, -1, self.d])
                 state = tuple(tf.reshape(s, [self.N, -1, self.d]) for s in state) if self.layer == 1 else \
                     [tuple(tf.reshape(s, [self.N, -1, self.d]) for s in sta) for sta in state]
 
                 with tf.variable_scope("AttnOutputProjection"):
-                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d * 3 + self.dw])
+                    oinp = tf.reshape(tf.concat([h, cinp], -1), [-1, self.d + cinp_dim])
                     # generation prob
                     p_gen = tf.sigmoid(_linear([oinp], output_size=1, bias=True, scope="gen_prob"))
                     p_gen = tf.reshape(p_gen, [self.N, -1, 1])

@@ -4,7 +4,7 @@ from prepro import prepro
 from prepro1 import prepro as prepro1
 from prepro2 import prepro as prepro2
 from prepro3 import prepro as prepro3
-from prepro2_sent import prepro as prepro2_sent
+# from prepro2_sent import prepro as prepro2_sent
 from main import train, train_rl, train_dual, test, test_beam, test_bleu, \
     test_rerank, test_reranked, tmp
 
@@ -29,11 +29,11 @@ if not os.path.exists(train_dir):
     os.mkdir(train_dir)
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
-target_dir = "data_new_sent2"
-log_dir = os.path.join(dir_name, "event_qg_sent2")
-save_dir = os.path.join(dir_name, "model_qg_sent2")
+target_dir = "data_new_sent1"
+log_dir = os.path.join(dir_name, "event_qg_sent3")
+save_dir = os.path.join(dir_name, "model_qg_sent3")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qg_sent2")
+answer_dir = os.path.join(dir_name, "answer_qg_sent3")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -73,6 +73,7 @@ flags.DEFINE_boolean("has_baseline", True, "Use baseline or not")
 flags.DEFINE_boolean("if_fix_base", False, "Fix baseline or not")
 flags.DEFINE_boolean("word_trainable", False, "Train word embeddings along or not")
 flags.DEFINE_boolean("use_pointer", True, "Use pointer network or not")
+flags.DEFINE_boolean("input_feeding", True, "Use input feeding or not")
 
 flags.DEFINE_string("mode", "train", "Running mode train/debug/test")
 flags.DEFINE_string("target_dir", target_dir, "Target directory for out data")
