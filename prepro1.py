@@ -33,11 +33,11 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter=None, char_counter=None, titles=None, lower_word=False):
+def process_file(filename, data_type, word_counter=None, char_counter=None, titles=None, lower_word=False, total=0):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
-    total = 0
+    total = total
     max_c, max_q, max_a = 0, 0, 0
     with open(filename, "r") as fh:
         source = json.load(fh)
@@ -379,8 +379,11 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
                                               char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-                                          char_counter, lower_word=config.lower_word)
+    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
+                                          char_counter, lower_word=config.lower_word, total=len(train_examples))
+    train_examples += dev_examples1
+    train_eval.update(dev_eval1)
+    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word, titles=test_titles)
 
     word_emb_file = config.glove_word_file
