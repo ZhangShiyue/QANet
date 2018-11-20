@@ -134,10 +134,10 @@ def evaluate(eval_file, answer_dict, is_answer=True):
         ground_truths = eval_file[key]["questions"] if not is_answer else eval_file[key]["answers"]
         prediction = value
         em = metric_max_over_ground_truths(
-                exact_match_score, prediction, ground_truths)
+                exact_match_score, prediction, ground_truths, is_answer=is_answer)
         exact_match += em
         f_1 = metric_max_over_ground_truths(f1_score,
-                                            prediction, ground_truths)
+                                            prediction, ground_truths, is_answer=is_answer)
         f1 += f_1
         f1s[key] = str(f_1)
     exact_match = 100.0 * exact_match / total
@@ -293,9 +293,9 @@ def normalize_answer(s):
     return white_space_fix(remove_articles(remove_punc(lower(s))))
 
 
-def f1_score(prediction, ground_truth):
-    prediction_tokens = normalize_answer(prediction).split()
-    ground_truth_tokens = normalize_answer(ground_truth).split()
+def f1_score(prediction, ground_truth, is_answer=True):
+    prediction_tokens = normalize_answer(prediction).split() if is_answer else prediction.lower().split()
+    ground_truth_tokens = normalize_answer(ground_truth).split() if is_answer else word_tokenize(ground_truth.lower())
     common = Counter(prediction_tokens) & Counter(ground_truth_tokens)
     num_same = sum(common.values())
     if num_same == 0:
@@ -306,14 +306,17 @@ def f1_score(prediction, ground_truth):
     return f1
 
 
-def exact_match_score(prediction, ground_truth):
-    return (normalize_answer(prediction) == normalize_answer(ground_truth))
+def exact_match_score(prediction, ground_truth, is_answer=True):
+    if is_answer:
+        return (normalize_answer(prediction) == normalize_answer(ground_truth))
+    else:
+        return (' '.join(prediction.lower().split()) == ' '.join(word_tokenize(ground_truth.lower())))
 
 
-def metric_max_over_ground_truths(metric_fn, prediction, ground_truths):
+def metric_max_over_ground_truths(metric_fn, prediction, ground_truths, is_answer=True):
     scores_for_ground_truths = []
     for ground_truth in ground_truths:
-        score = metric_fn(prediction, ground_truth)
+        score = metric_fn(prediction, ground_truth, is_answer=is_answer)
         scores_for_ground_truths.append(score)
     return max(scores_for_ground_truths)
 
@@ -406,9 +409,10 @@ def evaluate_bleu(eval_file, answer_dict, is_answer=True):
     translation_corpus = []
     for key, value in answer_dict.items():
         ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
-        prediction = value
-        prediction_tokens = normalize_answer(prediction).split()
-        ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+        # prediction_tokens = normalize_answer(prediction).split()
+        prediction_tokens = value.lower().split()
+        # ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+        ground_truth_tokens = [word_tokenize(ground_truth.lower()) for ground_truth in ground_truths]
         translation_corpus.append(prediction_tokens)
         reference_corpus.append(ground_truth_tokens)
     return compute_bleu(reference_corpus, translation_corpus)
@@ -466,20 +470,24 @@ def evaluate_rouge_L(eval_file, answer_dict, is_answer=True):
     scores = []
     for key, value in answer_dict.items():
         ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
-        prediction = value
-        prediction_tokens = normalize_answer(prediction).split()
-        ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+        # prediction = value
+        # prediction_tokens = normalize_answer(prediction).split()
+        prediction_tokens = value.lower().split()
+        # ground_truth_tokens = [normalize_answer(ground_truth).split() for ground_truth in ground_truths]
+        ground_truth_tokens = [word_tokenize(ground_truth.lower()) for ground_truth in ground_truths]
         score = compute_rouge_L(prediction_tokens, ground_truth_tokens)
         scores.append(score)
     return np.mean(scores)
+
 
 def evaluate_meteor(eval_file, answer_dict, is_answer=True):
     meteor = Meteor()
     res, gts = [], []
     for key, value in answer_dict.items():
         ground_truths = eval_file[key]["answers"] if is_answer else eval_file[key]["questions"]
-        prediction = normalize_answer(value)
-        ground_truths = [normalize_answer(ground_truth) for ground_truth in ground_truths]
+        # prediction = normalize_answer(value)
+        prediction = ' '.join(value.lower().split())
+        ground_truths = [' '.join(word_tokenize(ground_truth.lower())) for ground_truth in ground_truths]
         res.append(prediction)
         gts.append(ground_truths)
     score = meteor.compute_score(gts, res)

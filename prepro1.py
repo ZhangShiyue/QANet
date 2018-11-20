@@ -33,7 +33,7 @@ def convert_idx(text, tokens):
     return spans
 
 
-def process_file(filename, data_type, word_counter, char_counter, lower_word=False):
+def process_file(filename, data_type, word_counter=None, char_counter=None, titles=None, lower_word=False):
     print("Generating {} examples...".format(data_type))
     examples = []
     eval_examples = {}
@@ -42,6 +42,8 @@ def process_file(filename, data_type, word_counter, char_counter, lower_word=Fal
     with open(filename, "r") as fh:
         source = json.load(fh)
         for article in tqdm(source["data"]):
+            if titles is not None and article["title"].encode('utf-8') not in titles:
+                continue
             for para in article["paragraphs"]:
                 context = para["context"].replace(
                         "''", '" ').replace("``", '" ').replace(u'\u2013', '-')
@@ -52,9 +54,10 @@ def process_file(filename, data_type, word_counter, char_counter, lower_word=Fal
                 context_chars = [list(token) for token in context_tokens]
                 spans = convert_idx(context, context_tokens)
                 for token in context_tokens:
-                    word_counter[token] += len(para["qas"])
-                    for char in token:
-                        char_counter[char] += len(para["qas"])
+                    if word_counter is not None:
+                        word_counter[token] += len(para["qas"])
+                        for char in token:
+                            char_counter[char] += len(para["qas"])
                 for qa in para["qas"]:
                     total += 1
                     ques = qa["question"].replace(
@@ -65,9 +68,10 @@ def process_file(filename, data_type, word_counter, char_counter, lower_word=Fal
                     max_q = max(max_q, len(ques_tokens))
                     ques_chars = [list(token) for token in ques_tokens]
                     for token in ques_tokens:
-                        word_counter[token] += 1
-                        for char in token:
-                            char_counter[char] += 1
+                        if word_counter is not None:
+                            word_counter[token] += 1
+                            for char in token:
+                                char_counter[char] += 1
                     y1s, y2s = [], []
                     answer_texts = []
                     answer_tokens = []
@@ -132,7 +136,7 @@ def get_embedding(counter, data_type, limit=0, emb_file=None, size=None, vec_siz
                 word = "".join(array[0:-vec_size])
                 vector = list(map(float, array[-vec_size:]))
                 if lower_word:
-                    word.lower()
+                    word = word.lower()
                 if word in filtered_elements:
                     embedding_dict[word] = vector
         print("{} / {} tokens have corresponding {} embedding vector".format(
@@ -370,13 +374,14 @@ def save(filename, obj, message=None):
 
 
 def prepro(config):
+    train_titles = map(lambda x: x.strip(), open("processed/doclist-train.txt", 'r').readlines())
+    test_titles = map(lambda x: x.strip(), open("processed/doclist-test.txt", 'r').readlines())
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
-            char_counter, lower_word=config.lower_word)
+                                              char_counter, lower_word=config.lower_word, titles=train_titles)
     dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-            char_counter, lower_word=config.lower_word)
-    test_examples, test_eval = process_file(config.test_file, "test", word_counter,
-            char_counter, lower_word=config.lower_word)
+                                          char_counter, lower_word=config.lower_word)
+    test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word, titles=test_titles)
 
     word_emb_file = config.glove_word_file
     char_emb_file = config.glove_char_file if config.pretrained_char else None

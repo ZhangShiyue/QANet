@@ -31,14 +31,14 @@ class BasicModel(object):
         plus_word_mat = tf.tile(tf.nn.embedding_lookup(word_mat, [1]), [self.PL, 1])
         self.plus_word_mat = word_mat if not if_plus_word else tf.concat([word_mat, plus_word_mat], axis=0)
 
-    def input_embedding(self):
+    def input_embedding(self, dropout=0.):
         with tf.variable_scope("Input_Embedding_Layer"):
             ch_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.ch), [self.N * self.PL, self.CL, self.dc])
             qh_emb = tf.reshape(tf.nn.embedding_lookup(
                     self.char_mat, self.qh), [self.N * self.QL, self.CL, self.dc])
-            ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * self.dropout)
-            qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * self.dropout)
+            ch_emb = tf.nn.dropout(ch_emb, 1.0 - 0.5 * dropout)
+            qh_emb = tf.nn.dropout(qh_emb, 1.0 - 0.5 * dropout)
 
             # Bidaf style conv-highway encoder
             ch_emb = conv(ch_emb, self.dc, bias=True, activation=tf.nn.relu, kernel_size=5, name="char_conv",
@@ -52,14 +52,14 @@ class BasicModel(object):
             ch_emb = tf.reshape(ch_emb, [self.N, self.PL, ch_emb.shape[-1]])
             qh_emb = tf.reshape(qh_emb, [self.N, self.QL, qh_emb.shape[-1]])
 
-            c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.c), 1.0 - self.dropout)
-            q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.q), 1.0 - self.dropout)
+            c_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.c), 1.0 - dropout)
+            q_emb = tf.nn.dropout(tf.nn.embedding_lookup(self.plus_word_mat, self.q), 1.0 - dropout)
 
             c_emb = tf.concat([c_emb, ch_emb], axis=2)
             q_emb = tf.concat([q_emb, qh_emb], axis=2)
 
-            c_emb = highway(c_emb, scope="highway", dropout=self.dropout, reuse=None)
-            q_emb = highway(q_emb, scope="highway", dropout=self.dropout, reuse=True)
+            c_emb = highway(c_emb, scope="highway", dropout=dropout, reuse=None)
+            q_emb = highway(q_emb, scope="highway", dropout=dropout, reuse=True)
 
             return c_emb, q_emb
 
@@ -109,7 +109,7 @@ class BiDAFModel(BasicModel):
 
     def build_model(self, global_step):
         # word, character embedding
-        c_emb, q_emb = self.input_embedding()
+        c_emb, q_emb = self.input_embedding(dropout=0.1)
         c, q = self.input_encoder(c_emb, q_emb)
         attention_outputs = self.optimized_bidaf_attention(c, q)
         self.logits1, self.logits2 = self.model_encoder(attention_outputs)
@@ -193,7 +193,7 @@ class BiDAFGenerator(BiDAFModel):
 
     def build_model(self, global_step):
         # word, character embedding
-        c_emb, q_emb = self.input_embedding()
+        c_emb, q_emb = self.input_embedding(dropout=0.1)
         # input_encoder
         c, q = self.input_encoder(c_emb, q_emb)
         # bidaf_attention
