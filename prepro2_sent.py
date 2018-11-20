@@ -390,11 +390,11 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
                                               char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
-                                            char_counter, lower_word=config.lower_word)
-    # train_examples += dev_examples1
-    # train_eval.update(dev_eval1)
-    # dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
+    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
+                                            char_counter, lower_word=config.lower_word, total=len(train_examples))
+    train_examples += dev_examples1
+    train_eval.update(dev_eval1)
+    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word, titles=test_titles)
 
     word_emb_file = config.glove_word_file
