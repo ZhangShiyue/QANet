@@ -45,10 +45,6 @@ def train(config):
         sess_config = tf.ConfigProto(allow_soft_placement=True)
         sess_config.gpu_options.allow_growth = True
 
-        patience = 0
-        best_f1 = 0.
-        best_em = 0.
-
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter(config.log_dir)
             sess.run(tf.global_variables_initializer())
@@ -80,19 +76,22 @@ def train(config):
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("train"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
+                    em_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/em".format("train"), simple_value=metrics["exact_match"]), ])
+                    writer.add_summary(em_sum, global_step)
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("train"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)
-                    bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/bleu".format("train"), simple_value=metrics["bleu"][0]*100), ])
-                    writer.add_summary(bleu_sum, global_step)
-                    rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/rougeL".format("train"), simple_value=metrics["rougeL"]*100), ])
-                    writer.add_summary(rougeL_sum, global_step)
-                    meteor_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/meteor".format("train"), simple_value=metrics["meteor"][0]*100), ])
-                    writer.add_summary(meteor_sum, global_step)
-
+                    if not config.is_answer:
+                        bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/bleu".format("train"), simple_value=metrics["bleu"][0]*100), ])
+                        writer.add_summary(bleu_sum, global_step)
+                        rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/rougeL".format("train"), simple_value=metrics["rougeL"]*100), ])
+                        writer.add_summary(rougeL_sum, global_step)
+                        meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/meteor".format("train"), simple_value=metrics["meteor"][0]*100), ])
+                        writer.add_summary(meteor_sum, global_step)
 
                     metrics = evaluate_batch(config, model, dev_total // config.batch_size + 1,
                                              dev_eval_file, sess, dev_iterator, id2word,
@@ -100,30 +99,23 @@ def train(config):
                     loss_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/loss".format("dev"), simple_value=metrics["loss"]), ])
                     writer.add_summary(loss_sum, global_step)
+                    em_sum = tf.Summary(value=[tf.Summary.Value(
+                            tag="{}/em".format("dev"), simple_value=metrics["exact_match"]), ])
+                    writer.add_summary(em_sum, global_step)
                     f1_sum = tf.Summary(value=[tf.Summary.Value(
                             tag="{}/f1".format("dev"), simple_value=metrics["f1"]), ])
                     writer.add_summary(f1_sum, global_step)
-                    bleu_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/bleu".format("dev"), simple_value=metrics["bleu"][0]*100), ])
-                    writer.add_summary(bleu_sum, global_step)
-                    rougeL_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/rougeL".format("dev"), simple_value=metrics["rougeL"]*100), ])
-                    writer.add_summary(rougeL_sum, global_step)
-                    meteor_sum = tf.Summary(value=[tf.Summary.Value(
-                            tag="{}/meteor".format("dev"), simple_value=metrics["meteor"][0]*100), ])
-                    writer.add_summary(meteor_sum, global_step)
+                    if not config.is_answer:
+                        bleu_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/bleu".format("dev"), simple_value=metrics["bleu"][0]*100), ])
+                        writer.add_summary(bleu_sum, global_step)
+                        rougeL_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/rougeL".format("dev"), simple_value=metrics["rougeL"]*100), ])
+                        writer.add_summary(rougeL_sum, global_step)
+                        meteor_sum = tf.Summary(value=[tf.Summary.Value(
+                                tag="{}/meteor".format("dev"), simple_value=metrics["meteor"][0]*100), ])
+                        writer.add_summary(meteor_sum, global_step)
                     writer.flush()
-
-                    # dev_f1 = metrics["f1"]
-                    # dev_em = metrics["exact_match"]
-                    # if dev_f1 < best_f1 and dev_em < best_em:
-                    #     patience += 1
-                    #     if patience > config.early_stop:
-                    #         break
-                    # else:
-                    #     patience = 0
-                    #     best_em = max(best_em, dev_em)
-                    #     best_f1 = max(best_f1, dev_f1)
 
 
 def train_rl(config):
