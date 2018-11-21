@@ -480,7 +480,7 @@ def test(config):
 
         with tf.Session(config=sess_config) as sess:
             writer = tf.summary.FileWriter("{}/beam{}".format(config.log_dir, config.beam_size))
-            for ckpt in range(20, config.num_steps / config.checkpoint + 1):
+            for ckpt in range(3, config.num_steps / config.checkpoint + 1):
                 checkpoint = "{}/model_{}.ckpt".format(config.save_dir, ckpt*config.checkpoint)
                 sess.run(tf.global_variables_initializer())
                 saver = tf.train.Saver()
@@ -512,7 +512,6 @@ def test(config):
                             tag="{}/meteor".format("test"), simple_value=metrics["meteor"][0]*100), ])
                     writer.add_summary(meteor_sum, global_step)
                 writer.flush()
-                exit()
 
 
 def test_beam(config):
