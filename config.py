@@ -29,10 +29,10 @@ if not os.path.exists(train_dir):
 if not os.path.exists(os.path.join(os.getcwd(),dir_name)):
     os.mkdir(os.path.join(os.getcwd(),dir_name))
 target_dir = "data_new_para"
-log_dir = os.path.join(dir_name, "event_qa_para")
-save_dir = os.path.join(dir_name, "model_qa_para")
+log_dir = os.path.join(dir_name, "event_qg_para")
+save_dir = os.path.join(dir_name, "model_qg_para")
 save_dir_dual = os.path.join(dir_name, "model_qa")
-answer_dir = os.path.join(dir_name, "answer_qa_para")
+answer_dir = os.path.join(dir_name, "answer_qg_para")
 train_record_file = os.path.join(target_dir, "train.tfrecords")
 dev_record_file = os.path.join(target_dir, "dev.tfrecords")
 test_record_file = os.path.join(target_dir, "test.tfrecords")
@@ -59,10 +59,10 @@ if not os.path.exists(save_dir):
 if not os.path.exists(answer_dir):
     os.makedirs(answer_dir)
 
-flags.DEFINE_string("model_tpye", "BiDAFModel", "Model type")
+flags.DEFINE_string("model_tpye", "BiDAFGenerator", "Model type")
 flags.DEFINE_string("dual_model_tpye", "BiDAFModel", "Model type")
 flags.DEFINE_string("attention_tpye", "dot", "Model type")
-flags.DEFINE_boolean("is_answer", True, "Output answer or question")
+flags.DEFINE_boolean("is_answer", False, "Output answer or question")
 flags.DEFINE_boolean("is_answer_dual", True, "Output answer or question")
 flags.DEFINE_string("rl_metric", "meteor", "The metric used to train rl")
 flags.DEFINE_string("dual_rl_metric", "f1", "The metric used to train rl")
@@ -106,8 +106,8 @@ flags.DEFINE_list("bucket_range", [40, 401, 40], "the range of bucket")
 
 flags.DEFINE_integer("batch_size", 64, "Batch size")
 flags.DEFINE_integer("test_batch_size", 64, "Batch size")
-flags.DEFINE_integer("beam_size", 1, "Beam size")
-flags.DEFINE_integer("num_steps", 30000, "Number of steps")
+flags.DEFINE_integer("beam_size", 5, "Beam size")
+flags.DEFINE_integer("num_steps", 20000, "Number of steps")
 flags.DEFINE_integer("checkpoint", 1000, "checkpoint to save and evaluate the model")
 flags.DEFINE_integer("period", 1000, "period to save batch loss")
 flags.DEFINE_integer("pre_step", 30000, "period to save batch loss")
