@@ -177,7 +177,7 @@ def self_attention_block(inputs, num_filters, seq_len, memory=None, mask=None, c
         l += 1
         outputs = norm_fn(inputs, scope="layer_norm_1", reuse=reuse)
         outputs = tf.nn.dropout(outputs, 1.0 - dropout)
-        outputs, attention_weights = multihead_attention(outputs, num_filters, num_heads=num_heads,
+        outputs, attention_weights, _ = multihead_attention(outputs, num_filters, num_heads=num_heads,
                                       memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
                                       mask=mask, bias=bias, dropout=dropout)
         residual = layer_dropout(outputs, inputs, dropout * float(l) / L)
@@ -201,7 +201,7 @@ def self_attention_block_trans(inputs, num_filters, seq_len, memory=None, mask=N
         # Self attention
         l += 1
         outputs = tf.nn.dropout(inputs, 1.0 - dropout)
-        outputs, attention_weights = multihead_attention(outputs, num_filters, num_heads=num_heads,
+        outputs, attention_weights, _ = multihead_attention(outputs, num_filters, num_heads=num_heads,
                                       memory=memory, seq_len=seq_len, causality=causality, reuse=reuse,
                                       mask=mask, bias=bias, dropout=dropout)
         residual = norm_fn(outputs + inputs, scope="layer_norm_1", reuse=reuse)
@@ -239,14 +239,14 @@ def multihead_attention(queries, units, num_heads,
 
         key_depth_per_head = units // num_heads
         Q *= key_depth_per_head ** -0.5
-        x, a = dot_product_attention(Q, K, V,
+        x, a, logits = dot_product_attention(Q, K, V,
                                   bias=bias,
                                   seq_len=seq_len,
                                   causality=causality,
                                   mask=mask,
                                   scope="dot_product_attention",
                                   reuse=reuse, dropout=dropout)
-        return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3])), a
+        return combine_last_two_dimensions(tf.transpose(x, [0, 2, 1, 3])), a, logits
 
 
 def conv(inputs, output_size, bias=None, activation=None, kernel_size=1, name="conv", reuse=None):
@@ -375,7 +375,7 @@ def dot_product_attention(q,
         # dropping out the attention links for each of the heads
         weights = tf.nn.dropout(weights, 1.0 - dropout)
         res = tf.matmul(weights, v)
-        return res, weights
+        return res, weights, logits
 
 
 def vanilla_attention(queries, units, num_heads,
@@ -403,7 +403,7 @@ def vanilla_attention(queries, units, num_heads,
         weights = tf.nn.softmax(logits, name="attention_weights")
         weights = tf.nn.dropout(weights, 1.0 - dropout)
         res = tf.reduce_sum(tf.expand_dims(weights, -1) * tf.expand_dims(memory, 1), [2])
-        return res, weights
+        return res, weights, logits
 
 
 def location_attention(queries, units, num_heads,
@@ -433,7 +433,7 @@ def location_attention(queries, units, num_heads,
         weights = tf.nn.softmax(logits, name="attention_weights")
         weights = tf.nn.dropout(weights, 1.0 - dropout)
         res = tf.reduce_sum(tf.expand_dims(weights, -1) * tf.expand_dims(memory, 1), [2])
-        return res, weights
+        return res, weights, logits
 
 
 

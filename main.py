@@ -55,9 +55,10 @@ def train(config):
             train_next_element = train_iterator.get_next()
             for _ in tqdm(range(global_step, config.num_steps + 1)):
                 global_step = sess.run(model.global_step) + 1
-                c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
+                c, ca, cau, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(train_next_element)
                 loss, _ = sess.run([model.loss, model.train_op], feed_dict={
-                    model.c: c if config.is_answer else ca, model.q: q if config.is_answer else a,
+                    model.c: c if config.is_answer else ca, model.cu: cau,
+                    model.q: q if config.is_answer else a,
                     model.a: a if config.is_answer else qa, model.ch: ch if config.is_answer else cha,
                     model.qh: qh if config.is_answer else ah, model.ah: ah if config.is_answer else qh,
                     model.y1: y1, model.y2: y2, model.qa_id: qa_id, model.dropout: config.dropout})
@@ -408,7 +409,7 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
     losses = []
     next_element = iterator.get_next()
     for _ in tqdm(range(1, num_batches + 1)):
-        c, ca, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(next_element)
+        c, ca, cau, q, qa, a, ch, cha, qh, ah, y1, y2, qa_id = sess.run(next_element)
         if model_tpye == "QANetModel" or model_tpye == "BiDAFModel":
             loss, byp1, byp2 = sess.run([model.loss, model.byp1, model.byp2],
                                         feed_dict={model.c: c, model.q: q, model.a: a,
@@ -422,6 +423,7 @@ def evaluate_batch(config, model, num_batches, eval_file, sess, iterator, id2wor
                 or model_tpye == "BiDAFGenerator" or model_tpye == "BiDAFRLGenerator":
             loss, symbols = sess.run([model.loss, model.symbols],
                                      feed_dict={model.c: c if config.is_answer else ca,
+                                                model.cu: cau,
                                                 model.q: q if config.is_answer else a,
                                                 model.a: a if config.is_answer else qa,
                                                 model.ch: ch if config.is_answer else cha,

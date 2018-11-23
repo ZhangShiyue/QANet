@@ -169,12 +169,13 @@ class BiDAFModel(BasicModel):
 
 
 class BiDAFGenerator(BiDAFModel):
-    def __init__(self, context, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
+    def __init__(self, context, context_unique, context_mask, context_char, question, question_mask, ques_char, answer, answer_mask,
                  ans_char, y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
-                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type, layer):
+                 char_limit, hidden, char_dim, word_dim, num_words, use_pointer, attention_type, layer, pointer_type):
         BiDAFModel.__init__(self, context, context_mask, context_char, question, question_mask, ques_char,
                             y1, y2, word_mat, char_mat, dropout, batch_size, para_limit, ques_limit, ans_limit,
                             char_limit, hidden, char_dim, word_dim, if_plus_word=True)
+        self.cu = context_unique
         self.a = answer
         self.a_mask = answer_mask
         self.NV = num_words
@@ -182,6 +183,7 @@ class BiDAFGenerator(BiDAFModel):
         self.loop_function = self._loop_function_nopointer if not use_pointer else self._loop_function
         self.use_pointer = use_pointer
         self.attn_type = attention_type
+        self.pointer_type = pointer_type
         if attention_type == "dot":
             self.attention_function = multihead_attention
         elif attention_type == "vanilla":
@@ -238,8 +240,8 @@ class BiDAFGenerator(BiDAFModel):
                 if i > 0:
                     tf.get_variable_scope().reuse_variables()
 
-                attns = tf.expand_dims(attn_w, 1) if self.attn_type == "location" else None,
-                attn, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1,
+                attns = tf.expand_dims(tf.nn.softmax(attn_w), 1) if self.attn_type == "location" else None,
+                attn, _, attn_w = self.attention_function(tf.expand_dims(h, 1), units=self.d, num_heads=1,
                                                        attns=attns,
                                                        memory=memory, mask=self.c_mask,
                                                        bias=False, return_weights=True)
@@ -293,8 +295,8 @@ class BiDAFGenerator(BiDAFModel):
                             p_gens[j] = tf.gather_nd(p_gen, index)  # update prev p_gens
                         symbols.append(prev_symbol)
 
-                attns = (attn_w if i == 0 else attn_ws[-1]) if self.attn_type == "location" else None
-                attn, attn_w = self.attention_function(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
+                attns = (tf.nn.softmax(attn_w) if i == 0 else tf.nn.softmax(attn_ws[-1])) if self.attn_type == "location" else None
+                attn, _, attn_w = self.attention_function(tf.expand_dims(h, 1) if i == 0 else h, units=self.d, num_heads=1,
                                                        attns=attns, memory=memory,
                                                        mask=self.c_mask, bias=False, return_weights=True)
                 attn_w = tf.reshape(attn_w, [self.N, -1, self.PL])
@@ -362,9 +364,17 @@ class BiDAFGenerator(BiDAFModel):
         dim = 1 if i == 1 else beam_size
         # scatter attention probs
         bc = tf.tile(tf.expand_dims(self.c, 1), [1, dim, 1])  # batch_size * beam_size * PL
+        bcu = tf.tile(tf.expand_dims(self.cu, 1), [1, dim, 1])
+        attn_nums_c = tf.tile(tf.reshape(tf.range(self.PL), [1, 1, self.PL]), [self.N, dim, 1])
         batch_nums_c = tf.tile(tf.reshape(tf.range(self.N), [self.N, 1, 1]), [1, dim, self.PL])
         beam_size_c = tf.tile(tf.reshape(tf.range(dim), [1, dim, 1]), [self.N, 1, self.PL])
         indices_c = tf.stack((batch_nums_c, beam_size_c, bc), axis=3)
+        indices_cu = tf.stack((batch_nums_c, beam_size_c, attn_nums_c, bcu), axis=3)
+        if self.pointer_type == "max":
+            attn_w = tf.scatter_nd(indices_cu, attn_w, [self.N, dim, self.PL, self.PL])
+            attn_w = mask_logits(attn_w, tf.cast(attn_w, tf.bool))
+            attn_w = tf.reduce_max(attn_w, axis=2)
+        attn_w = tf.nn.softmax(attn_w)
         dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, dim, self.NVP])
         # combine generation probs and copy probs
         logit = tf.matmul(tf.reshape(prev, [-1, self.dw]), self.word_mat, transpose_b=True)
@@ -392,6 +402,8 @@ class BiDAFGenerator(BiDAFModel):
     def _compute_loss(self, ouputs, oups, attn_ws, p_gens, global_step, use_pointer):
         batch_nums_c = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.PL])
         batch_nums_q = tf.tile(tf.expand_dims(tf.range(self.N), 1), [1, self.QL])
+        attn_nums_c = tf.tile(tf.reshape(tf.range(self.PL), [1, self.PL]), [self.N, 1])
+        indices_cu = tf.stack((batch_nums_c, attn_nums_c, self.cu), axis=2)
         indices_c = tf.stack((batch_nums_c, self.c), axis=2)
         batch_nums = tf.expand_dims(tf.range(self.N), 1)
         weights = []
@@ -402,6 +414,11 @@ class BiDAFGenerator(BiDAFModel):
             logit = tf.matmul(output, self.word_mat, transpose_b=True)
             target = tf.reshape(oup, [-1])
             if use_pointer:
+                if self.pointer_type == "max":
+                    attn_w = tf.scatter_nd(indices_cu, attn_w, [self.N, self.PL, self.PL])
+                    attn_w = mask_logits(attn_w, tf.cast(attn_w, tf.bool))
+                    attn_w = tf.reduce_max(attn_w, axis=1)
+                attn_w = tf.nn.softmax(attn_w)
                 dist_c = tf.scatter_nd(indices_c, attn_w, [self.N, self.NVP])
                 plus_logit = tf.zeros([self.N, self.PL]) - 1e30
                 logit = tf.concat([logit, plus_logit], axis=-1)

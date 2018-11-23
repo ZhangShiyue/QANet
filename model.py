@@ -23,6 +23,7 @@ class Model(object):
             self.qa_id = tf.placeholder(tf.int32, [self.N], "qa_id")
             self.dropout = tf.placeholder_with_default(0.0, (), name="dropout")
             self.c = tf.placeholder(tf.int32, [self.N, self.PL], "context")
+            self.cu = tf.placeholder(tf.int32, [self.N, self.PL], "context_unique")
             self.q = tf.placeholder(tf.int32, [self.N, self.QL], "question")
             self.a = tf.placeholder(tf.int32, [self.N, self.AL], "answer")
             self.ch = tf.placeholder(tf.int32, [self.N, self.PL, self.CL], "context_char")
@@ -80,11 +81,11 @@ class Model(object):
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *
                                      tf.log(tf.cast(self.global_step, tf.float32) + 1))
             elif model_tpye == "BiDAFGenerator":
-                model = BiDAFGenerator(self.c, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
+                model = BiDAFGenerator(self.c, self.cu, self.c_mask, self.ch, self.q, self.q_mask, self.qh, self.a, self.a_mask,
                                        self.ah, self.y1, self.y2, self.word_mat, self.char_mat, self.dropout,
                                        self.N, self.PL, self.QL, self.AL, self.CL, config.hidden, config.char_dim,
                                        config.glove_dim, self.num_words, config.use_pointer, config.attention_tpye,
-                                       config.decoder_layers)
+                                       config.decoder_layers, config.pointer_type)
                 self.loss, self.loss_ans = model.build_model(self.global_step)
                 self.symbols = model.sample(config.beam_size)
                 self.lr = tf.minimum(config.ml_learning_rate, 0.001 / tf.log(999.) *

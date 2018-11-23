@@ -264,6 +264,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
         total += 1
         context_idxs = np.zeros([para_limit], dtype=np.int32)
         context_idxs_ans = np.zeros([para_limit], dtype=np.int32)
+        context_idxs_ans_unique = np.arange(para_limit, dtype=np.int32)
         context_char_idxs = np.zeros([para_limit, char_limit], dtype=np.int32)
         context_char_idxs_ans = np.zeros([para_limit, char_limit], dtype=np.int32)
         ques_idxs = np.zeros([ques_limit], dtype=np.int32)
@@ -295,7 +296,12 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
             else:
                 context_idxs[i] = wid
 
+        context_tokens = {}
         for i, token in enumerate(example["context_tokens_ans"]):
+            if token in context_tokens:
+                context_idxs_ans_unique[i] = context_tokens[token]
+            else:
+                context_tokens[token] = i
             wid = _get_word(token, i)
             if config.use_pointer:
                 context_idxs_ans[i] = len(word2idx_dict) + i if wid == 1 else wid
@@ -348,6 +354,7 @@ def build_features(config, examples, data_type, out_file, word2idx_dict,
         record = tf.train.Example(features=tf.train.Features(feature={
             "context_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs.tostring()])),
             "context_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs_ans.tostring()])),
+            "context_idxs_ans_unique": tf.train.Feature(bytes_list=tf.train.BytesList(value=[context_idxs_ans_unique.tostring()])),
             "ques_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs.tostring()])),
             "ques_idxs_ans": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ques_idxs_ans.tostring()])),
             "ans_idxs": tf.train.Feature(bytes_list=tf.train.BytesList(value=[ans_idxs.tostring()])),
@@ -379,11 +386,8 @@ def prepro(config):
     word_counter, char_counter = Counter(), Counter()
     train_examples, train_eval = process_file(config.train_file, "train", word_counter,
                                               char_counter, lower_word=config.lower_word, titles=train_titles)
-    dev_examples1, dev_eval1 = process_file(config.dev_file, "dev", word_counter,
-                                          char_counter, lower_word=config.lower_word, total=len(train_examples))
-    train_examples += dev_examples1
-    train_eval.update(dev_eval1)
-    dev_examples, dev_eval = process_file(config.train_file, "dev", lower_word=config.lower_word, titles=test_titles)
+    dev_examples, dev_eval = process_file(config.dev_file, "dev", word_counter,
+                                          char_counter, lower_word=config.lower_word)
     test_examples, test_eval = process_file(config.train_file, "test", lower_word=config.lower_word, titles=test_titles)
 
     word_emb_file = config.glove_word_file
